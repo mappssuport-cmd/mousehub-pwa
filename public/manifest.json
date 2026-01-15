@@ -1,0 +1,86 @@
+{
+  "name": "Mousehub",
+  "short_name": "Mousehub",
+  "description": "Aplicación de gestión de archivos Mousehub",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#02020E",
+  "theme_color": "#02020E",
+  "orientation": "portrait-primary",
+  "dir": "ltr",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/assets/images/output/32px/icon_32px.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/output/64px/icon_64px.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/output/96px/icon_96px.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/output/128px/icon_128px.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/output/192px/icon_192px.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/output/256px/icon_256px.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/output/384px/icon_384px.png",
+      "sizes": "384x384",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/images/output/512px/icon_512px.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+
+  "categories": ["productivity", "utilities"],
+  "permissions": ["none"],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {
+      "name": "Inicio",
+      "short_name": "Inicio",
+      "description": "Ir a la página principal",
+      "url": "/?shortcut=home",
+      "icons": [
+        {
+          "src": "/assets/images/output/192px/icon_192px.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "screenshots": [],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+       "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

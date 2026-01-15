@@ -1,0 +1,153 @@
+/* Efectos Glass - Equivalentes a los drawables XML de Android */
+
+/* glass_background.xml */
+.glass-background {
+  background: rgba(255, 255, 255, 0.067);
+  border-radius: 22px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* glass_background_text.xml */
+.glass-background-text {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* glass_background_category.xml */
+.glass-background-category {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.063) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  border-radius: 25px;
+  border: 1px solid transparent;
+  position: relative;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.glass-background-category::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 25px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.145) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+
+/* glass_button.xml */
+.glass-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid #3dd2f3;
+  border-radius: 20px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  color: white;
+  font-family: var(--font-primary);
+  font-size: 16px;
+  font-weight: bold;
+  padding: 14px 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 10px rgba(61, 210, 243, 0.3);
+}
+
+.glass-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 5px rgba(61, 210, 243, 0.2);
+}
+
+.glass-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* glass_drawer.xml */
+.glass-drawer {
+  background: rgba(26, 26, 46, 0.8);
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+  box-shadow: 3px 0 10px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  position: relative;
+}
+
+.glass-drawer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.188) 0%,
+    rgba(255, 255, 255, 0.125) 50%,
+    rgba(255, 255, 255, 0.063) 100%
+  );
+  pointer-events: none;
+}
+
+/* glass_text_field_background.xml */
+.glass-text-field {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #3dd2f3;
+  border-radius: 10px;
+  box-shadow: 0 8px 2px rgba(0, 0, 0, 0.25);
+  padding: 16px;
+  color: white;
+  font-family: var(--font-primary);
+  font-size: 16px;
+  outline: none;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.glass-text-field::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.glass-text-field:focus {
+  border-color: #3dd2f3;
+  box-shadow: 0 0 0 2px rgba(61, 210, 243, 0.2);
+}
+
+/* Input container con icono */
+.glass-input-container {
+  position: relative;
+  width: 100%;
+}
+
+.glass-input-container .input-icon {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.glass-input-container .input-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: #3dd2f3;
+}

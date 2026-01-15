@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  
+  <meta name="theme-color" content="#02020E" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#02020E" media="(prefers-color-scheme: light)">
+  <meta name="msapplication-navbutton-color" content="#02020E">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <meta name="application-name" content="MouseHub">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="MouseHub">
+  <meta name="mobile-web-app-capable" content="yes">
+  
+  <title>MouseHub - Bienvenido</title>
+  
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/images/output/192px/icon_192px.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/images/output/512px/icon_512px.png">
+  <link rel="apple-touch-icon" href="/assets/images/output/192px/icon_192px.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+   <!-- 📱 Biblioteca para ESCANEAR QR (móvil) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  
+  <!-- 📺 Biblioteca para GENERAR QR (TV) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+  
+  
+  <link rel="preload" as="image" href="/assets/images/icons/logo.webp" type="image/webp">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #02020E;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+    
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: #02020E;
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.3s ease;
+    }
+    
+    body::after {
+      content: '';
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 48px;
+      height: 48px;
+      margin: -24px 0 0 -24px;
+      border: 4px solid rgba(61, 210, 243, 0.2);
+      border-top-color: #3dd2f3;
+      border-radius: 50%;
+      z-index: 10000;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    body.app-loaded::before,
+    body.app-loaded::after {
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    #app {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    body.app-loaded #app {
+      opacity: 1;
+    }
+    
+    .no-js-warning {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #02020E;
+      color: white;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      z-index: 10001;
+    }
+    
+    .no-js .no-js-warning {
+      display: flex;
+    }
+    
+    .no-js body::before,
+    .no-js body::after {
+      display: none;
+    }
+  </style>
+</head>
+<body class="no-js">
+  <div id="app"></div>
+  
+  <div class="no-js-warning">
+    <h1>⚠️ JavaScript Requerido</h1>
+    <p style="margin: 16px 0;">Esta aplicación requiere JavaScript para funcionar.</p>
+    <p style="opacity: 0.7; font-size: 14px;">Por favor, habilita JavaScript en tu navegador.</p>
+  </div>
+  
+  <script>
+    document.body.classList.remove('no-js');
+  </script>
+  
+  <!-- ✅ Script principal con manejo de errores -->
+  <script type="module">
+    setTimeout(function() {
+      if (!document.body.classList.contains('app-loaded')) {
+        console.warn('⚠️ Timeout global - forzando visibilidad');
+        document.body.classList.add('app-loaded');
+      }
+    }, 15000);
+    
+    import('./src/app.js').catch(function(error) {
+      console.error('❌ ERROR CARGANDO APP.JS:', error.message);
+      console.error('Stack:', error.stack);
+      
+      document.body.classList.add('app-loaded');
+      document.getElementById('app').innerHTML = 
+        '<div style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;background:#02020E;color:white;padding:20px;text-align:center;">' +
+        '<h1 style="font-size:24px;margin-bottom:16px;">⚠️ Error de Carga</h1>' +
+        '<p style="font-size:16px;margin-bottom:12px;">No se pudo cargar la aplicación.</p>' +
+        '<div style="background:rgba(255,0,0,0.1);border:2px solid #ff4444;padding:12px;border-radius:8px;margin:16px;max-width:90%;text-align:left;font-family:monospace;font-size:11px;overflow:auto;max-height:200px;">' +
+        '<strong>Error:</strong> ' + error.message + '<br><br>' +
+        '<strong>Stack:</strong><br>' + (error.stack || '').split('\\n').slice(0, 5).join('<br>') +
+        '</div>' +
+        '<button onclick="location.reload()" style="padding:12px 24px;background:#3dd2f3;border:none;border-radius:8px;color:white;font-size:16px;cursor:pointer;font-weight:bold;">Reintentar</button>' +
+        '</div>';
+    });
+  </script>
+  
+  <!-- ✅ FALLBACK para navegadores que no soportan módulos ES6 -->
+  <script nomodule>
+    console.error('❌ NAVEGADOR NO SOPORTA MÓDULOS ES6');
+    document.body.classList.add('app-loaded');
+    document.getElementById('app').innerHTML = 
+      '<div style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;background:#02020E;color:white;padding:20px;text-align:center;font-family:system-ui,sans-serif;">' +
+      '<h1 style="font-size:24px;margin-bottom:16px;">⚠️ Navegador No Compatible</h1>' +
+      '<p style="font-size:16px;margin-bottom:24px;opacity:0.8;">Tu navegador es muy antiguo para esta aplicación.</p>' +
+      '<p style="font-size:14px;opacity:0.6;">Por favor, actualiza tu navegador o usa uno más moderno como:</p>' +
+      '<p style="font-size:14px;margin-top:12px;opacity:0.6;">Chrome, Firefox, Safari o Edge</p>' +
+      '</div>';
+  </script>
+</body>
+</html>

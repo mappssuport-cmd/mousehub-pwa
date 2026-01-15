@@ -1,0 +1,44 @@
+/* ========================================
+   SISTEMA DE FUENTES OPTIMIZADO
+   ======================================== */
+
+/* ✅ Preload de Comic Sans desde Google Fonts (más confiable) */
+@import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap');
+
+/* ✅ Variable global de fuente con fallbacks robustos */
+:root {
+  --font-primary: 'Comic Neue', 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', 
+                  'TSCu_Comic', cursive, sans-serif;
+  
+  --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+                 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* ✅ Aplicar fuente a todo el documento */
+*,
+*::before,
+*::after {
+  font-family: var(--font-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ✅ Fallback para inputs y botones (a veces no heredan) */
+input,
+button,
+textarea,
+select {
+  font-family: var(--font-primary);
+}
+
+/* ✅ Optimización de carga de fuentes */
+@font-face {
+  font-family: 'Comic Sans MS';
+  src: local('Comic Sans MS'), local('Comic-Sans-MS');
+  font-display: swap; /* Muestra texto inmediatamente con fallback */
+}
+
+/* ✅ Clase de utilidad para fuente del sistema (si se necesita) */
+.font-system {
+  font-family: var(--font-system) !important;
+}
