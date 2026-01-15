@@ -1,10 +1,6 @@
+
 name = "mousehub-pwa"
 compatibility_date = "2026-01-15"
 
-[site]
-bucket = "./dist"
-
-# Reglas para SPA routing
-[[routes]]
-pattern = "/*"
-zone_name = ""
+[assets]
+directory = "./dist"
