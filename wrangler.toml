@@ -1,6 +1,7 @@
-
 name = "mousehub-pwa"
 compatibility_date = "2026-01-15"
 
 [assets]
 directory = "./dist"
+html_handling = "force-trailing-slash"
+not_found_handling = "single-page-application"
