@@ -132,34 +132,58 @@ static async generateKey(password) {
       throw error;
     }
   }
-  /**
-   * Descarga y descifra una imagen desde Cloudflare
-   */
-  static async downloadAndDecryptImage(cloudflareUrl, password, startByte, endByte) {
-    try {
-      console.log('📥 Descargando:', cloudflareUrl);
-      console.log('📦 Rango:', startByte, '-', endByte);
-      const response = await fetch(cloudflareUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+ static async downloadAndDecryptImage(cloudflareUrl, password, startByte, endByte) {
+  try {
+    console.log('📥 Descargando:', cloudflareUrl);
+    console.log('📦 Rango:', startByte, '-', endByte);
+    
+    // ✅ CRÍTICO: Usar Range header para descargar SOLO el fragmento necesario
+    const response = await fetch(cloudflareUrl, {
+      headers: {
+        'Range': `bytes=${startByte}-${endByte}`
       }
-      const fileArrayBuffer = await response.arrayBuffer();
-      console.log('✅ Archivo descargado:', fileArrayBuffer.byteLength, 'bytes');
-      const imageBytes = await this.decryptByteRange(
+    });
+    
+    // ✅ Verificar que el servidor soportó el Range request
+    if (response.status === 206) {
+      console.log('✅ Descarga parcial (206) exitosa');
+    } else if (response.status === 200) {
+      console.warn('⚠️ Servidor ignoró Range, descargando archivo completo');
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const fileArrayBuffer = await response.arrayBuffer();
+    console.log('✅ Datos descargados:', fileArrayBuffer.byteLength, 'bytes');
+    
+    // ✅ Si fue 206, los datos YA están en el rango correcto
+    let imageBytes;
+    if (response.status === 206) {
+      // Los datos ya vienen en el rango solicitado
+      const fileData = new Uint8Array(fileArrayBuffer);
+      const key = await this.generateKey(password);
+      imageBytes = new Uint8Array(fileData.length);
+      for (let i = 0; i < fileData.length; i++) {
+        imageBytes[i] = fileData[i] ^ key[i % key.length];
+      }
+    } else {
+      // Fallback: si descargó todo, extraer el rango
+      imageBytes = await this.decryptByteRange(
         fileArrayBuffer,
         password,
         Number(startByte),
         Number(endByte)
       );
-      const blob = new Blob([imageBytes], { type: 'image/webp' });
-      const imageUrl = URL.createObjectURL(blob);
-      console.log('🖼️ Imagen lista para mostrar');
-      return imageUrl;
-    } catch (error) {
-      console.error('❌ Error descargando/descifrando:', error);
-      throw error;
     }
-  }
+    
+    const blob = new Blob([imageBytes], { type: 'image/webp' });
+    const imageUrl = URL.createObjectURL(blob);
+    console.log('🖼️ Imagen lista para mostrar');
+    return imageUrl;
+  } catch (error) {
+    console.error('❌ Error descargando/descifrando:', error);
+    throw error;
+  }}
   static revokeBlobUrl(blobUrl) {
     if (blobUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(blobUrl);
