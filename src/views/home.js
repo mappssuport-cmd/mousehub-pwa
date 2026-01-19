@@ -356,53 +356,57 @@ loadUserInfo() {
     contextElement.textContent = `Hoy es ${contextInfo.dayOfWeek}, ${contextInfo.dayOfMonth} de ${contextInfo.month}`;
   }
 }
- async loadCategoryContent(category) {
-    try {
-      console.log('📂 Cargando contenido de:', category);
+async loadCategoryContent(category) {
+  try {
+    console.log('📂 Cargando contenido de:', category);
+    if (!this.folderKey) {
+      HelpClass.showToast('⚠️Cargando key de carpetas...');
+      await this.loadFolderKey();
       if (!this.folderKey) {
-        HelpClass.showToast('⚠️Cargando key de carpetas...');
-        await this.loadFolderKey();
-        if (!this.folderKey) {
-          HelpClass.showToast('❌ No se pudo cargar la key de carpetas');
-          return;
-        }
-      }
-      if (!this.currentRawTag) {
-        HelpClass.showToast('⚠️No se pudo obtener el tag de la categoría');
+        HelpClass.showToast('❌ No se pudo cargar la key de carpetas');
         return;
       }
-      const ownerId = storage.get('owner_id');
-      if (!ownerId) {
-        HelpClass.showToast('❌No se encontró owner_id');
-        return;
-      }
-      this.showFoldersContainer();
-      this.showLoadingCards(3);
-      console.log(`🔍 Buscando carpetas en Owner_${ownerId}_Database con tag:`, this.currentRawTag);
-      const foldersResult = await appwriteManager.getFoldersByTag(ownerId, this.currentRawTag);
-      if (!foldersResult.success) {
-        this.clearFoldersContainer();
-        HelpClass.showToast('❌Error buscando carpetas:'+foldersResult.error);
-        return;
-      }
-      const folders = foldersResult.data;
-      if (folders.length === 0) {
-        this.clearFoldersContainer();
-        this.foldersContainer.innerHTML = `
-          <div style="text-align: center; padding: var(--spacing-xl); color: var(--color-text-secondary);">
-            📁 No hay carpetas en esta categoría
-          </div>
-        `;
-        return;
-      }
-      this.clearFoldersContainer();
-      for (const folderDoc of folders) {
-        await this.processFolderAndDisplay(folderDoc, ownerId);
-      }
-    } catch (error) {
-      console.error('❌ Error en loadCategoryContent:', error);
-      HelpClass.showToast('❌ Error: ' + error.message);
     }
+    if (!this.currentRawTag) {
+      HelpClass.showToast('⚠️No se pudo obtener el tag de la categoría');
+      return;
+    }
+    const ownerId = storage.get('owner_id');
+    if (!ownerId) {
+      HelpClass.showToast('❌No se encontró owner_id');
+      return;
+    }
+    this.showFoldersContainer();
+    this.showLoadingCards(3);
+    console.log(`🔍 Buscando carpetas en Owner_${ownerId}_Database con tag:`, this.currentRawTag);
+    const foldersResult = await appwriteManager.getFoldersByTag(ownerId, this.currentRawTag);
+    if (!foldersResult.success) {
+      this.clearFoldersContainer();
+      HelpClass.showToast('❌Error buscando carpetas:'+foldersResult.error);
+      return;
+    }
+    const folders = foldersResult.data;
+    if (folders.length === 0) {
+      this.clearFoldersContainer();
+      this.foldersContainer.innerHTML = `
+        <div style="text-align: center; padding: var(--spacing-xl); color: var(--color-text-secondary);">
+          📁 No hay carpetas en esta categoría
+        </div>
+      `;
+      return;
+    }
+    this.clearFoldersContainer();
+    
+    // ✅ CAMBIO CRÍTICO: Procesar carpetas SECUENCIALMENTE
+    for (const folderDoc of folders) {
+      await this.processFolderAndDisplay(folderDoc, ownerId);
+      // ✅ Pequeña pausa entre peticiones para no saturar Cloudflare
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  } catch (error) {
+    console.error('❌ Error en loadCategoryContent:', error);
+    HelpClass.showToast('❌ Error: ' + error.message);
+  }
 }
 //PARTEEE2----
 
