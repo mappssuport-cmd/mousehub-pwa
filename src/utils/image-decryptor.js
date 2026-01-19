@@ -1,6 +1,6 @@
 
 export class ImageDecryptor {
-static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, endByte) {
+  static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, endByte) {
   try {
     const fileData = new Uint8Array(encryptedFileArrayBuffer);
     console.log('📦 Archivo completo:', fileData.byteLength, 'bytes');
@@ -9,28 +9,23 @@ static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, end
     const encryptedData = fileData.slice(startByte, endByte + 1);
     console.log('🔐 Datos cifrados:', encryptedData.byteLength, 'bytes');
     
-    // Derivar key SHA-256 con fallback robusto para TVs
+    // Derivar key SHA-256 con fallback para TVs
     const encoder = new TextEncoder();
     const passwordBytes = encoder.encode(password);
     
     let key;
-    
-    try {
-      // Intentar crypto.subtle solo si existe completamente
-      if (typeof crypto !== 'undefined' && 
-          crypto.subtle && 
-          typeof crypto.subtle.digest === 'function') {
-        
-        const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
-        key = new Uint8Array(keyBuffer);
-        console.log('✅ SHA-256 usando crypto.subtle');
-      } else {
-        throw new Error('crypto.subtle no disponible');
+    if (crypto && crypto.subtle && crypto.subtle.digest) {
+      // Navegadores modernos
+      const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
+      key = new Uint8Array(keyBuffer);
+    } else {
+      // Fallback simple para TVs: usar los bytes de la password directamente
+      // repetidos para alcanzar 32 bytes (SHA-256 length)
+      key = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) {
+        key[i] = passwordBytes[i % passwordBytes.length];
       }
-    } catch (err) {
-      // Fallback automático para TVs y entornos sin crypto.subtle
-      console.warn('⚠️ Usando fallback key generation:', err.message);
-      key = this.generateFallbackKey(passwordBytes);
+      console.warn('⚠️ Usando fallback SHA-256 (TV/contexto inseguro)');
     }
     
     // XOR para descifrar
@@ -46,15 +41,6 @@ static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, end
     console.error('❌ Error descifrando rango XOR:', error);
     throw error;
   }
-}
-
-// Nuevo método auxiliar
-static generateFallbackKey(passwordBytes) {
-  const key = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) {
-    key[i] = passwordBytes[i % passwordBytes.length];
-  }
-  return key;
 }
 
   /**
