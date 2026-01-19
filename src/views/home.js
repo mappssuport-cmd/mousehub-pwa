@@ -4,12 +4,6 @@ import { router } from '../app.js';
 import storage from '../utils/storage-manager.js';
 import appwriteManager from '../managers/appwrite-manager.js';
 import { HelpClass } from '../utils/help-class.js';
-
-import { router } from '../app.js';
-
-import storage from '../utils/storage-manager.js';
-import appwriteManager from '../managers/appwrite-manager.js';
-import { HelpClass } from '../utils/help-class.js';
 import { GreetingMessageManager } from '../utils/greeting-message-manager.js';
 import { CategorySelector } from '../components/category-selector/category-selector.js';
 import { remoteControl } from '../utils/remote-control-helper.js';
