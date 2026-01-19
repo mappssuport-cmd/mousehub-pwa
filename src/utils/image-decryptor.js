@@ -96,28 +96,55 @@ export class ImageDecryptor {
     return result;
   }
 
-  /**
-   * Genera key SHA-256 con fallback para TVs
-   */
-  static async generateKey(password) {
-    const encoder = new TextEncoder();
-    const passwordBytes = encoder.encode(password);
-    
-    // ✅ Verificar si crypto.subtle está disponible
-    if (typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function') {
-      try {
-        console.log('🔐 Usando crypto.subtle (nativo)');
-        const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
-        return new Uint8Array(keyBuffer);
-      } catch (error) {
-        console.warn('⚠️ crypto.subtle falló, usando fallback:', error.message);
-      }
+/**
+ * Genera key SHA-256 con fallback para TVs
+ * CORREGIDO: Verificación ultra-defensiva para evitar "digest of undefined"
+ */
+static async generateKey(password) {
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+  
+  // ✅ Verificación ultra-defensiva separada en pasos
+  let canUseNativeCrypto = false;
+  
+  try {
+    // Paso 1: ¿Existe crypto?
+    if (typeof crypto === 'undefined' || crypto === null) {
+      console.log('🔐 crypto no existe');
+    } 
+    // Paso 2: ¿Existe crypto.subtle?
+    else if (typeof crypto.subtle === 'undefined' || crypto.subtle === null) {
+      console.log('🔐 crypto.subtle no existe');
     }
-    
-    // ✅ Fallback: SHA-256 en JavaScript puro (para TVs)
-    console.log('🔐 Usando SHA-256 JavaScript puro (fallback TV)');
-    return this.sha256Pure(passwordBytes);
+    // Paso 3: ¿Es digest una función?
+    else if (typeof crypto.subtle.digest !== 'function') {
+      console.log('🔐 crypto.subtle.digest no es función');
+    }
+    // ✅ Todo existe
+    else {
+      canUseNativeCrypto = true;
+    }
+  } catch (checkError) {
+    console.warn('⚠️ Error verificando crypto:', checkError.message);
+    canUseNativeCrypto = false;
   }
+  
+  // Intentar usar crypto nativo si está disponible
+  if (canUseNativeCrypto) {
+    try {
+      console.log('🔐 Usando crypto.subtle (nativo)');
+      const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
+      return new Uint8Array(keyBuffer);
+    } catch (cryptoError) {
+      console.warn('⚠️ crypto.subtle.digest falló:', cryptoError.message);
+      // Continuar al fallback
+    }
+  }
+  
+  // ✅ Fallback: SHA-256 en JavaScript puro (para TVs)
+  console.log('🔐 Usando SHA-256 JavaScript puro (fallback TV)');
+  return this.sha256Pure(passwordBytes);
+}
 
   static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, endByte) {
     try {

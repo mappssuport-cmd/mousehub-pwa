@@ -443,43 +443,73 @@ async processFolderAndDisplay(folderDoc, ownerId) {
   try {
     console.log('🔓 Descifrando carpeta...');
     const decryptedFolder = await FolderDecryptor.decryptFolderData(folderDoc, this.folderKey);
+    
     if (!decryptedFolder) {
       console.error('❌ No se pudo descifrar carpeta');
       this.addFolderCard(FolderCard.createErrorCard('Error descifrando'));
       return;
     }
+    
     const { folder_name, icon_folder, miniatura_data } = decryptedFolder;
     console.log(`🖼️ Buscando miniatura: ${icon_folder}`);
+    
     const thumbnailResult = await appwriteManager.getThumbnailByIconFolder(ownerId, icon_folder);
+    
     if (!thumbnailResult.success) {
       console.error('❌ No se encontró miniatura:', thumbnailResult.error);
       this.addFolderCard(FolderCard.createErrorCard('Sin miniatura'));
       return;
     }
+    
     const cloudflareUrl = thumbnailResult.data.key;
     const startByte = parseInt(miniatura_data[0]);
     const endByte = parseInt(miniatura_data[1]);
     console.log(`📥 Descargando imagen: ${startByte}-${endByte}`);
-    const imageUrl = await ImageDecryptor.downloadAndDecryptImage(
-      cloudflareUrl,
-      this.folderKey,
-      startByte,
-      endByte
-    );
+    
+    let imageUrl;
+    try {
+      imageUrl = await ImageDecryptor.downloadAndDecryptImage(
+        cloudflareUrl,
+        this.folderKey,
+        startByte,
+        endByte
+      );
+    } catch (imgError) {
+      // 🆕 Mostrar diálogo de error detallado en TV
+      if (this.isTV) {
+        const { ErrorDialog } = await import('../utils/error-dialog.js');
+        ErrorDialog.show({
+          method: 'ImageDecryptor.downloadAndDecryptImage → generateKey',
+          message: imgError.message,
+          stack: imgError.stack?.substring(0, 500) || 'No disponible',
+          context: [
+            `📁 Carpeta: ${folder_name}`,
+            `🔗 URL: ${cloudflareUrl?.substring(0, 60)}...`,
+            `📦 Rango bytes: ${startByte} - ${endByte}`,
+            `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`
+          ].join('\n')
+        });
+      }
+      throw imgError;
+    }
     
     const folderData = {
       imageUrl,
       folderData: decryptedFolder,
       rawDoc: folderDoc
     };
+    
     this.loadedFolders.push(folderData);
     const folderIndex = this.loadedFolders.length - 1;
+    
     const cardHtml = FolderCard.createCard(
       imageUrl,
       folder_name,
       folderIndex
     );
+    
     this.addFolderCard(cardHtml);
+    
     setTimeout(() => {
       const cardId = `folder-${folderIndex}`;
       const card = document.getElementById(cardId);
@@ -492,7 +522,24 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
-    this.addFolderCard(FolderCard.createErrorCard('Error cargando',error));
+    
+    // 🆕 Mostrar error detallado en TV si no se mostró antes
+    if (this.isTV && !document.getElementById('tv-error-dialog')) {
+      try {
+        const { ErrorDialog } = await import('../utils/error-dialog.js');
+        ErrorDialog.show({
+          method: 'processFolderAndDisplay (catch general)',
+          message: error.message,
+          stack: error.stack?.substring(0, 500) || 'No disponible',
+          context: `FolderDoc ID: ${folderDoc?.$id || 'desconocido'}`
+        });
+      } catch (importError) {
+        // Si falla la importación, mostrar toast simple
+        HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
+      }
+    }
+    
+    this.addFolderCard(FolderCard.createErrorCard('Error XDD'));
   }
 }
 async handleFolderClick(decryptedFolder, rawDoc) {
