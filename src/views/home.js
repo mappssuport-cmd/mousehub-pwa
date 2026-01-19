@@ -14,7 +14,6 @@ import { FolderDecryptor } from '../utils/folder-decryptor.js';
 import { ImageDecryptor } from '../utils/image-decryptor.js';
 import { FolderCard } from '../components/folder-card/folder-card.js';
 import { PlaybackOrchestrator } from '../utils/playback-orchestrator.js';
-import { diskCache } from '../utils/disk-cache.js';
 import { SeekCalculator } from '../utils/seek-calculator.js';
 import { memoryCache } from '../utils/memory-cache.js';
 export class Home {
@@ -48,9 +47,6 @@ export class Home {
     await this.loadFolderKey();
     await this.loadManifestKey(); 
   }
-
-
-//PARTEEEEE---3---
 async loadFolderKey() {
     try {
       const ownerId = storage.get('owner_id');
@@ -96,6 +92,48 @@ async loadManifestKey() {
     console.error('❌ Error cargando manifest key:', error);
   }
 }
+// Agregar este método a la clase Home o como utilidad separada
+async fetchWithDiagnostics(url, startByte, endByte) {
+  // 1. Verificar URL
+  console.log('🔗 URL a descargar:', url);
+  
+  // Verificar protocolo
+  if (url.startsWith('http://') && window.location.protocol === 'https:') {
+    throw new Error('Mixed Content: La URL es HTTP pero la app es HTTPS');
+  }
+
+  // 2. Primero probar sin Range header (diagnóstico)
+  try {
+    const testResponse = await fetch(url, { 
+      method: 'HEAD',
+      mode: 'cors'
+    });
+    console.log('✅ HEAD request exitoso, status:', testResponse.status);
+    console.log('📋 Headers:', Object.fromEntries(testResponse.headers.entries()));
+  } catch (headError) {
+    console.error('❌ HEAD request falló:', headError.message);
+    console.error('⚠️ Probable problema de CORS');
+    // Continuamos de todas formas para ver el error real
+  }
+
+  // 3. Hacer el fetch real con Range
+  const headers = {};
+  if (startByte !== undefined && endByte !== undefined) {
+    headers['Range'] = `bytes=${startByte}-${endByte}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'GET',
+    mode: 'cors',
+    headers
+  });
+
+  if (!response.ok && response.status !== 206) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response;
+}
 setupEventListeners() {
   const menuButton = document.getElementById('menuButton');
   menuButton && menuButton.addEventListener('click', () => this.toggleDrawer()); 
@@ -124,7 +162,7 @@ setupEventListeners() {
   }); 
 }
 
-
+//Fragmento con falla
 
 async startVideoPlayback(fromBeginning = true) {
   try {
@@ -137,6 +175,7 @@ async startVideoPlayback(fromBeginning = true) {
       HelpClass.showToast('❌ No se encontró la carpeta');
       return;
     }
+
     // Mostrar el contenedor del reproductor
     this.showVideoPlayerContainer();
     // Obtener el contenedor donde se renderizará el reproductor
@@ -161,6 +200,7 @@ async startVideoPlayback(fromBeginning = true) {
     this.hideVideoPlayerContainer();
   }
 }
+
 showVideoPlayerContainer() {
   const container = document.getElementById('videoPlayerContainer');
   if (container) {
@@ -180,8 +220,6 @@ hideVideoPlayerContainer() {
     this.playbackOrchestrator = null;
   }
 }
-
-
 setupBackHandler() {
     HelpClass.setupBackHandler(
       () => this.isDrawerOpen,
@@ -243,26 +281,89 @@ async initializeCategorySelector() {
   ];
   let categories = placeholderCategories;
   let rawTags = [];
+  
   try {
     const tagsRawJSON = storage.get('tags_raw');
     const keyValor = storage.get('Key_valor');
+    
     if (tagsRawJSON && keyValor) {
+      // Crear panel de depuración
+      const debugContent = this.createDebugPanel();
+      
+      this.addDebugLog('═══════════════════════════════════════', 'info');
+      this.addDebugLog('🚀 INICIANDO DESCIFRADO DE TAGS', 'info');
+      this.addDebugLog('═══════════════════════════════════════', 'info');
+      
       const tagsRaw = JSON.parse(tagsRawJSON);
-      rawTags = tagsRaw
-      const decryptPromises = tagsRaw.map(tag => TagDecryptor.decrypt(tag, keyValor));
-      const decryptedTags = await Promise.all(decryptPromises);
-      const validTags = decryptedTags.filter(tag => tag !== null);   
+      rawTags = tagsRaw;
+      
+      this.addDebugLog(`📋 Total de tags a descifrar: ${tagsRaw.length}`, 'info');
+      this.addDebugLog(`🔑 Key_valor presente: ${keyValor ? 'SÍ' : 'NO'}`, 'info');
+      this.addDebugLog('───────────────────────────────────────', 'info');
+      
+      const decryptedTags = [];
+      
+      for (let index = 0; index < tagsRaw.length; index++) {
+        const tag = tagsRaw[index];
+        
+        this.addDebugLog(`\n🏷️ TAG #${index + 1}/${tagsRaw.length}`, 'info');
+        this.addDebugLog(`Longitud: ${tag.length} caracteres`, 'info');
+        this.addDebugLog(`Preview: ${tag.substring(0, 50)}...`, 'info');
+        
+        try {
+          const result = await TagDecryptor.decrypt(
+            tag, 
+            keyValor,
+            (msg, type) => this.addDebugLog(msg, type)
+          );
+          
+          if (result === null) {
+            this.addDebugLog(`⚠️ Tag #${index + 1} retornó NULL`, 'warning');
+            decryptedTags.push(null);
+          } else {
+            this.addDebugLog(`✅ Tag #${index + 1} descifrado exitosamente`, 'success');
+            decryptedTags.push(result);
+          }
+          
+          this.addDebugLog('───────────────────────────────────────', 'info');
+          
+        } catch (error) {
+          this.addDebugLog(`❌ Excepción en tag #${index + 1}: ${error.message}`, 'error');
+          this.addDebugLog(`Stack: ${error.stack}`, 'error');
+          decryptedTags.push(null);
+          this.addDebugLog('───────────────────────────────────────', 'info');
+        }
+      }
+      
+      const validTags = decryptedTags.filter(tag => tag !== null);
+      
+      this.addDebugLog('\n═══════════════════════════════════════', 'info');
+      this.addDebugLog('📊 RESUMEN FINAL', 'info');
+      this.addDebugLog('═══════════════════════════════════════', 'info');
+      this.addDebugLog(`✅ Tags exitosos: ${validTags.length}`, 'success');
+      this.addDebugLog(`❌ Tags fallidos: ${tagsRaw.length - validTags.length}`, 'error');
+      this.addDebugLog(`📈 Tasa de éxito: ${((validTags.length / tagsRaw.length) * 100).toFixed(1)}%`, 'info');
+      
       if (validTags.length > 0) {
         categories = validTags;
+        this.addDebugLog('\n✅ Usando tags descifrados', 'success');
+        validTags.forEach((tag, i) => {
+          this.addDebugLog(`  ${i + 1}. ${tag}`, 'success');
+        });
       } else {
+        this.addDebugLog('\n⚠️ Usando categorías placeholder', 'warning');
         console.warn('⚠️ No se pudo descifrar ningún tag, usando placeholder');
       }
+      
     } else {
+      HelpClass.showToast('⚠️ No hay tags o key en storage', { duration: 3000 });
       console.warn('⚠️ No hay tags o key en storage, usando placeholder');
     }
   } catch (error) {
+    HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
     console.error('❌ Error descifrando tags:', error);
   }
+  
   this.categorySelector = new CategorySelector(
     categorySelectorContainer,
     categories,
@@ -273,6 +374,7 @@ async initializeCategorySelector() {
       this.loadCategoryContent(category);
     }
   ); 
+  
   this.categorySelector.render();
 }
 loadUserInfo() {
@@ -296,56 +398,60 @@ loadUserInfo() {
     contextElement.textContent = `Hoy es ${contextInfo.dayOfWeek}, ${contextInfo.dayOfMonth} de ${contextInfo.month}`;
   }
 }
- async loadCategoryContent(category) {
-    try {
-      console.log('📂 Cargando contenido de:', category);
+async loadCategoryContent(category) {
+  try {
+    console.log('📂 Cargando contenido de:', category);
+    if (!this.folderKey) {
+      HelpClass.showToast('⚠️Cargando key de carpetas...');
+      await this.loadFolderKey();
       if (!this.folderKey) {
-        HelpClass.showToast('⚠️Cargando key de carpetas...');
-        await this.loadFolderKey();
-        if (!this.folderKey) {
-          HelpClass.showToast('❌ No se pudo cargar la key de carpetas');
-          return;
-        }
-      }
-      if (!this.currentRawTag) {
-        HelpClass.showToast('⚠️No se pudo obtener el tag de la categoría');
+        HelpClass.showToast('❌ No se pudo cargar la key de carpetas');
         return;
       }
-      const ownerId = storage.get('owner_id');
-      if (!ownerId) {
-        HelpClass.showToast('❌No se encontró owner_id');
-        return;
-      }
-      this.showFoldersContainer();
-      this.showLoadingCards(3);
-      console.log(`🔍 Buscando carpetas en Owner_${ownerId}_Database con tag:`, this.currentRawTag);
-      const foldersResult = await appwriteManager.getFoldersByTag(ownerId, this.currentRawTag);
-      if (!foldersResult.success) {
-        this.clearFoldersContainer();
-        HelpClass.showToast('❌Error buscando carpetas:'+foldersResult.error);
-        return;
-      }
-      const folders = foldersResult.data;
-      if (folders.length === 0) {
-        this.clearFoldersContainer();
-        this.foldersContainer.innerHTML = `
-          <div style="text-align: center; padding: var(--spacing-xl); color: var(--color-text-secondary);">
-            📁 No hay carpetas en esta categoría
-          </div>
-        `;
-        return;
-      }
-      this.clearFoldersContainer();
-      for (const folderDoc of folders) {
-        await this.processFolderAndDisplay(folderDoc, ownerId);
-      }
-    } catch (error) {
-      console.error('❌ Error en loadCategoryContent:', error);
-      HelpClass.showToast('❌ Error: ' + error.message);
     }
+    if (!this.currentRawTag) {
+      HelpClass.showToast('⚠️No se pudo obtener el tag de la categoría');
+      return;
+    }
+    const ownerId = storage.get('owner_id');
+    if (!ownerId) {
+      HelpClass.showToast('❌No se encontró owner_id');
+      return;
+    }
+    this.showFoldersContainer();
+    this.showLoadingCards(3);
+    console.log(`🔍 Buscando carpetas en Owner_${ownerId}_Database con tag:`, this.currentRawTag);
+    const foldersResult = await appwriteManager.getFoldersByTag(ownerId, this.currentRawTag);
+    if (!foldersResult.success) {
+      this.clearFoldersContainer();
+      HelpClass.showToast('❌Error buscando carpetas:'+foldersResult.error);
+      return;
+    }
+    const folders = foldersResult.data;
+    if (folders.length === 0) {
+      this.clearFoldersContainer();
+      this.foldersContainer.innerHTML = `
+        <div style="text-align: center; padding: var(--spacing-xl); color: var(--color-text-secondary);">
+          📁 No hay carpetas en esta categoría
+        </div>
+      `;
+      return;
+    }
+    this.clearFoldersContainer();
+    
+    for (const folderDoc of folders) {
+      await this.processFolderAndDisplay(folderDoc, ownerId);
+      if (this.isTV) {
+        await new Promise(resolve => setTimeout(resolve, 300)); // 300ms entre carpetas
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error en loadCategoryContent:', error);
+    HelpClass.showToast('❌ Error: ' + error.message);
+  }
 }
+//PARTEEE2----
 
-  //Parteeeee2---(Punto de falla)-----
 toggleDrawer() {
     if (this.isDrawerOpen) {
       this.closeDrawer();
@@ -377,46 +483,130 @@ async handleLogout() {
   }, 1500);
 }
 async processFolderAndDisplay(folderDoc, ownerId) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 segundo
+
   try {
     console.log('🔓 Descifrando carpeta...');
     const decryptedFolder = await FolderDecryptor.decryptFolderData(folderDoc, this.folderKey);
+    
     if (!decryptedFolder) {
       console.error('❌ No se pudo descifrar carpeta');
       this.addFolderCard(FolderCard.createErrorCard('Error descifrando'));
       return;
     }
+    
     const { folder_name, icon_folder, miniatura_data } = decryptedFolder;
     console.log(`🖼️ Buscando miniatura: ${icon_folder}`);
+    
     const thumbnailResult = await appwriteManager.getThumbnailByIconFolder(ownerId, icon_folder);
+    
     if (!thumbnailResult.success) {
       console.error('❌ No se encontró miniatura:', thumbnailResult.error);
       this.addFolderCard(FolderCard.createErrorCard('Sin miniatura'));
       return;
     }
+    
     const cloudflareUrl = thumbnailResult.data.key;
     const startByte = parseInt(miniatura_data[0]);
     const endByte = parseInt(miniatura_data[1]);
-    console.log(`📥 Descargando imagen: ${startByte}-${endByte}`);
-    const imageUrl = await ImageDecryptor.downloadAndDecryptImage(
-      cloudflareUrl,
-      this.folderKey,
-      startByte,
-      endByte
-    );
     
+    // ✅ NUEVO: Validar URL antes de intentar
+    console.log(`📥 URL completa: ${cloudflareUrl}`);
+    console.log(`📦 Range: bytes=${startByte}-${endByte}`);
+    
+    // ✅ NUEVO: Verificar que la URL sea válida
+    if (!cloudflareUrl || !cloudflareUrl.startsWith('http')) {
+      throw new Error(`URL inválida: ${cloudflareUrl}`);
+    }
+
+    let imageUrl = null;
+    let lastError = null;
+
+    // ✅ NUEVO: Sistema de reintentos
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`🔄 Intento ${attempt}/${MAX_RETRIES} para ${folder_name}`);
+        
+        imageUrl = await ImageDecryptor.downloadAndDecryptImage(
+          cloudflareUrl,
+          this.folderKey,
+          startByte,
+          endByte
+        );
+        
+        // Si llegamos aquí, fue exitoso
+        console.log(`✅ Imagen descargada exitosamente en intento ${attempt}`);
+        break;
+        
+      } catch (imgError) {
+        lastError = imgError;
+        console.error(`❌ Intento ${attempt} falló:`, imgError.message);
+        
+        // ✅ NUEVO: Diagnóstico específico del error
+        if (imgError.message.includes('Failed to fetch')) {
+          console.error('🔍 Diagnóstico de "Failed to fetch":');
+          console.error('   - ¿CORS habilitado en Cloudflare? Verificar configuración');
+          console.error('   - ¿URL accesible? Probar en navegador directamente');
+          console.error('   - ¿Range headers soportados? Verificar en Cloudflare');
+          
+          // ✅ NUEVO: Intentar fetch de diagnóstico
+          try {
+            await this.diagnosticFetch(cloudflareUrl);
+          } catch (diagError) {
+            console.error('🔍 Diagnóstico adicional:', diagError.message);
+          }
+        }
+        
+        // Esperar antes de reintentar (excepto en el último intento)
+        if (attempt < MAX_RETRIES) {
+          console.log(`⏳ Esperando ${RETRY_DELAY}ms antes de reintentar...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+        }
+      }
+    }
+
+    // Si todos los intentos fallaron
+    if (!imageUrl && lastError) {
+      // Mostrar error en TV
+      if (this.isTV) {
+        const { ErrorDialog } = await import('../utils/error-dialog.js');
+        ErrorDialog.show({
+          method: 'ImageDecryptor.downloadAndDecryptImage',
+          message: lastError.message,
+          stack: lastError.stack?.substring(0, 500) || 'No disponible',
+          context: [
+            `📁 Carpeta: ${folder_name}`,
+            `🔗 URL: ${cloudflareUrl?.substring(0, 80)}...`,
+            `📦 Rango bytes: ${startByte} - ${endByte}`,
+            `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`,
+            `⚠️ Posible causa: CORS no configurado en Cloudflare`
+          ].join('\n')
+        });
+      }
+      
+      this.addFolderCard(FolderCard.createErrorCard('Error de red'));
+      return;
+    }
+    
+    // Resto del código igual...
     const folderData = {
       imageUrl,
       folderData: decryptedFolder,
       rawDoc: folderDoc
     };
+    
     this.loadedFolders.push(folderData);
     const folderIndex = this.loadedFolders.length - 1;
+    
     const cardHtml = FolderCard.createCard(
       imageUrl,
       folder_name,
       folderIndex
     );
+    
     this.addFolderCard(cardHtml);
+    
     setTimeout(() => {
       const cardId = `folder-${folderIndex}`;
       const card = document.getElementById(cardId);
@@ -429,7 +619,52 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
-    this.addFolderCard(FolderCard.createErrorCard('Error cargando'));
+    
+    if (this.isTV && !document.getElementById('tv-error-dialog')) {
+      try {
+        const { ErrorDialog } = await import('../utils/error-dialog.js');
+        ErrorDialog.show({
+          method: 'processFolderAndDisplay (catch general)',
+          message: error.message,
+          stack: error.stack?.substring(0, 500) || 'No disponible',
+          context: `FolderDoc ID: ${folderDoc?.$id || 'desconocido'}`
+        });
+      } catch (importError) {
+        HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
+      }
+    }
+    
+    this.addFolderCard(FolderCard.createErrorCard('Error'));
+  }
+}
+
+// ✅ NUEVO: Método de diagnóstico
+async diagnosticFetch(url) {
+  console.log('🔍 Ejecutando fetch de diagnóstico...');
+  
+  // Probar sin headers especiales
+  try {
+    const simpleResponse = await fetch(url, { mode: 'no-cors' });
+    console.log('📋 Fetch no-cors: opaque response (esperado)');
+  } catch (e) {
+    console.error('❌ Incluso no-cors falló:', e.message);
+  }
+  
+  // Verificar si es problema de red vs CORS
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = url;
+      setTimeout(() => reject(new Error('Timeout')), 5000);
+    });
+    
+    console.log('✅ Imagen cargable como <img> - URL accesible');
+  } catch (e) {
+    console.error('❌ No cargable como imagen:', e.message);
   }
 }
 async handleFolderClick(decryptedFolder, rawDoc) {
@@ -497,7 +732,8 @@ showDetailLoading() {
   document.getElementById('detailVideoContainer').innerHTML = '';
   document.getElementById('detailIdownSuport').textContent = '';
   document.getElementById('detailUnifiqSuport').textContent = '';
-}
+} 
+
 async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSuport, unifiqSuport }) {
   document.getElementById('detailImage').src = imageUrl;
   document.getElementById('detailTitle').textContent = title;
@@ -521,8 +757,9 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
     videoContainer.innerHTML = '';
   }
 
+  //Fragmento Falla (Ya reparado)
   // Flags
-  document.getElementById('detailIdownSuport').textContent = 
+   document.getElementById('detailIdownSuport').textContent = 
     idownSuport ? '✓ Descarga soportada' : '✗ Sin descarga';
   document.getElementById('detailUnifiqSuport').textContent = 
     unifiqSuport ? '✓ Único' : '✗ Múltiple';
@@ -534,10 +771,15 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
     savedTime = memoryCache.getPlaybackTime();
     hasLocalData = cachedManifest !== null && savedTime > 0;
   } else {
+    // Importación dinámica - solo carga el módulo si realmente se necesita(Arreglado el fallo de diskCache)
+    const { diskCache } = await import('../utils/disk-cache.js');
     const status = await diskCache.checkFolderStatus(title);
-    hasLocalData = status.hasPlayback && status.chunkCount > 0;
+    hasLocalData = status.exists && status.chunkCount > 0;
     savedTime = status.playbackTime;
   }
+
+  
+
   const continueBtn = document.getElementById('detailContinueButton');
   const resumeBtn = document.getElementById('detailResumeButton');
   if (hasLocalData && savedTime > 0) {
@@ -548,16 +790,14 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
     continueBtn.textContent = '▶️ Reproducir';
     resumeBtn.style.display = 'none';
   }
-}
-
-//PARTE1--------------
+} 
 
 extractYouTubeId(url) {
   const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
   const match = url.match(regExp);
   return (match && match[7].length === 11) ? match[7] : null;
 }
-  showFoldersContainer() {
+showFoldersContainer() {
     if (!this.foldersContainer) {
       this.foldersContainer = document.getElementById('foldersContainer');
       if (!this.foldersContainer) {
@@ -576,7 +816,7 @@ extractYouTubeId(url) {
     }
     this.foldersContainer.style.display = 'grid';
   }
-  showLoadingCards(count = 3) {
+showLoadingCards(count = 3) {
     if (this.foldersContainer) {
       this.foldersContainer.innerHTML = '';
       for (let i = 0; i < count; i++) {
@@ -603,13 +843,11 @@ clearFoldersContainer() {
     this.foldersContainer.innerHTML = '';
   }
 }
-  addFolderCard(cardHtml) {
+addFolderCard(cardHtml) {
   if (this.foldersContainer) {
     this.foldersContainer.insertAdjacentHTML('beforeend', cardHtml);
   }
 }
-
-
 destroy() {
   this.categorySelector = null;
   this.clearFoldersContainer();
@@ -631,6 +869,306 @@ destroy() {
   }
 }
 
+  async handleQRLogin() {
+    try {
+      const email = storage.get('qr_email');
+      const password = storage.get('qr_password');
+      if (!email || !password) {
+        HelpClass.showToast('⚠️ Credenciales no disponibles. Vuelve a iniciar sesión.', {
+          duration: 4000
+        });
+        return;
+      }
+      HelpClass.showToast('📷 Abriendo escáner QR...');
+      if (typeof Html5Qrcode === 'undefined') {
+        await this.loadQRLibrary();
+      }
+      const scannerModal = this.createScannerModal();
+      document.body.appendChild(scannerModal);
+      this.qrModal = scannerModal;
+      this.html5QrCode = new Html5Qrcode("qr-reader");
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+      };
+      this.html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        async (decodedText) => {
+          console.log('✅ QR escaneado:', decodedText);
+          await this.html5QrCode.stop();
+          this.html5QrCode = null;
+          document.body.removeChild(scannerModal);
+          this.qrModal = null;
+          await this.processQRData(decodedText, email, password);
+        },
+        (errorMessage) => {
+        }
+      ).catch(err => {
+        console.error('❌ Error iniciando cámara:', err);
+        HelpClass.showToast('❌ No se pudo acceder a la cámara');
+        document.body.removeChild(scannerModal);
+        this.qrModal = null;
+        this.html5QrCode = null;
+      });
+      scannerModal.querySelector('.close-scanner').addEventListener('click', async () => {
+        if (this.html5QrCode) {
+          await this.html5QrCode.stop();
+          this.html5QrCode = null;
+        }
+        document.body.removeChild(scannerModal);
+        this.qrModal = null;
+      });
+
+    } catch (error) {
+      console.error('❌ Error en QR login:', error);
+      HelpClass.showToast('❌ Error: ' + error.message);
+    }
+  }
+  loadQRLibrary() {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/html5-qrcode';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  createScannerModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    `;
+    modal.innerHTML = `
+      <button class="close-scanner" style="
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255,255,255,0.2);
+        border: 1px solid #3dd2f3;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+      ">✕ Cerrar</button>
+      <h2 style="color: white; margin-bottom: 20px;">Escanea el código QR</h2>
+      <div id="qr-reader" style="width: 90%; max-width: 500px;"></div>
+      <p style="color: #3dd2f3; margin-top: 20px; text-align: center;">
+        Apunta la cámara al código QR en la TV
+      </p>
+    `;
+    return modal;
+  }
+async processQRData(qrData, email, password) {
+  try {
+    console.log('📥 Datos del QR recibidos:', qrData);
+    let qrObject;
+    try {
+      qrObject = JSON.parse(qrData);
+    } catch (parseError) {
+      console.error('❌ Error parseando QR:', parseError);
+      throw new Error('QR inválido: formato JSON incorrecto');
+    }
+    const { id, pwd, salt } = qrObject;
+    if (!id || !pwd || !salt) {
+      console.error('❌ Datos faltantes en QR:', { 
+        hasId: !!id, 
+        hasPwd: !!pwd, 
+        hasSalt: !!salt 
+      });
+      throw new Error('QR incompleto');
+    }
+    console.log('✅ QR válido:', {
+      documentId: id,
+      pwdLength: pwd.length,
+      saltLength: salt.length
+    });
+    const token = await this.encryptCredentials(email, password, pwd, salt);
+    console.log('✅ Token cifrado:', {
+      length: token.length,
+      preview: token.substring(0, 30) + '...'
+    });
+    await this.updateTempDocument(id, token);
+    HelpClass.showToast('✅ Login enviado a la TV', { 
+      duration: 3000 
+    });
+  } catch (error) {
+    console.error('❌ Error procesando QR:', {
+      mensaje: error.message,
+      stack: error.stack
+    });
+    HelpClass.showToast(`❌ ${error.message}`, {
+      duration: 4000
+    });
+  }}
+async encryptCredentials(email, password, key, salt) {
+  const credentials = JSON.stringify({ email, password });
+  const encoder = new TextEncoder();
+  const data = encoder.encode(credentials);
+  const saltBytes = encoder.encode(salt);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(key),
+    'PBKDF2',
+    false,
+    ['deriveBits', 'deriveKey']
+    );
+    const cryptoKey = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: saltBytes,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt']
+    );
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      cryptoKey,
+      data
+    );
+    const combined = new Uint8Array(iv.length + encrypted.byteLength);
+    combined.set(iv);
+    combined.set(new Uint8Array(encrypted), iv.length);
+    return btoa(String.fromCharCode(...combined));
+  }
+async updateTempDocument(docId, token) {
+  const endpoint = appwriteManager.getEndpoint();
+  const projectId = appwriteManager.getProjectId();
+  const databaseId = appwriteManager.getDatabaseId();
+  const response = await fetch(
+    `${endpoint}/databases/${databaseId}/collections/temp/documents/${docId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': projectId
+      },
+      body: JSON.stringify({
+        data: {
+          token: token
+        }
+      })
+    }
+  );
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error actualizando documento: ${errorText}`);
+  }
+console.log('✅ Token enviado al documento:', docId);
+}
+
+
+createDebugPanel() {
+  const existingPanel = document.getElementById('debugPanel');
+  if (existingPanel) {
+    existingPanel.remove();
+  }
+
+  const panel = document.createElement('div');
+  panel.id = 'debugPanel';
+  panel.innerHTML = `
+    <div style="
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(2, 2, 14, 0.98);
+      border: 2px solid #3DD2F3;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 600px;
+      max-height: 80vh;
+      overflow-y: auto;
+      z-index: 10000;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    ">
+      <div style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        border-bottom: 1px solid #3DD2F3;
+        padding-bottom: 10px;
+      ">
+        <h3 style="margin: 0; color: #3DD2F3; font-size: 18px;">
+          🔍 Depuración de Tags
+        </h3>
+        <button id="closeDebugPanel" style="
+          background: #ff4444;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          padding: 5px 15px;
+          cursor: pointer;
+          font-size: 14px;
+        ">✕ Cerrar</button>
+      </div>
+      <div id="debugContent" style="
+        color: #ffffff;
+        font-family: monospace;
+        font-size: 13px;
+        line-height: 1.6;
+      "></div>
+    </div>
+  `;
+
+  document.body.appendChild(panel);
+
+  const closeBtn = document.getElementById('closeDebugPanel');
+  closeBtn.addEventListener('click', () => {
+    panel.remove();
+  });
+
+  return document.getElementById('debugContent');
+}
+
+addDebugLog(message, type = 'info') {
+  const debugContent = document.getElementById('debugContent');
+  if (!debugContent) return;
+
+  const colors = {
+    info: '#3DD2F3',
+    success: '#4CAF50',
+    warning: '#FFA726',
+    error: '#ff4444',
+    step: '#9C27B0'
+  };
+
+  const color = colors[type] || colors.info;
+
+  const logEntry = document.createElement('div');
+  logEntry.style.cssText = `
+    margin-bottom: 8px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid ${color};
+    border-radius: 4px;
+  `;
+  logEntry.innerHTML = `<span style="color: ${color};">${message}</span>`;
+
+  debugContent.appendChild(logEntry);
+  debugContent.scrollTop = debugContent.scrollHeight;
+}
+
+
+
 getHomeHTML() {
   return `
     <div class="home-screen">
@@ -644,11 +1182,12 @@ getHomeHTML() {
         <!-- Botón QR con solo icono - CORREGIDO: ruta absoluta -->
         ${!this.isTV ? `
           <button id="qrLoginButton" class="qr-tv-button-icon" aria-label="Conectar con TV">
-            <img src="/public/assets/images/drawable/tvsmart.png" alt="TV" class="tv-icon">
+            <img src="/assets/images/drawable/tvsmart.webp" alt="TV" class="tv-icon">
           </button>
         ` : '<div class="header-spacer"></div>'}
       </header>
 
+      
       <!-- Contenido principal -->
       <main class="home-content">
         <!-- Selector de categorías -->
@@ -1149,212 +1688,4 @@ getHomeStyles() {
     </style>
   `;
 }
-
-
-  async handleQRLogin() {
-    try {
-      const email = storage.get('qr_email');
-      const password = storage.get('qr_password');
-      if (!email || !password) {
-        HelpClass.showToast('⚠️ Credenciales no disponibles. Vuelve a iniciar sesión.', {
-          duration: 4000
-        });
-        return;
-      }
-      HelpClass.showToast('📷 Abriendo escáner QR...');
-      if (typeof Html5Qrcode === 'undefined') {
-        await this.loadQRLibrary();
-      }
-      const scannerModal = this.createScannerModal();
-      document.body.appendChild(scannerModal);
-      this.qrModal = scannerModal;
-      this.html5QrCode = new Html5Qrcode("qr-reader");
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
-      };
-      this.html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        async (decodedText) => {
-          console.log('✅ QR escaneado:', decodedText);
-          await this.html5QrCode.stop();
-          this.html5QrCode = null;
-          document.body.removeChild(scannerModal);
-          this.qrModal = null;
-          await this.processQRData(decodedText, email, password);
-        },
-        (errorMessage) => {
-        }
-      ).catch(err => {
-        console.error('❌ Error iniciando cámara:', err);
-        HelpClass.showToast('❌ No se pudo acceder a la cámara');
-        document.body.removeChild(scannerModal);
-        this.qrModal = null;
-        this.html5QrCode = null;
-      });
-      scannerModal.querySelector('.close-scanner').addEventListener('click', async () => {
-        if (this.html5QrCode) {
-          await this.html5QrCode.stop();
-          this.html5QrCode = null;
-        }
-        document.body.removeChild(scannerModal);
-        this.qrModal = null;
-      });
-
-    } catch (error) {
-      console.error('❌ Error en QR login:', error);
-      HelpClass.showToast('❌ Error: ' + error.message);
-    }
-  }
-  loadQRLibrary() {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/html5-qrcode';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-  createScannerModal() {
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.95);
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    `;
-    modal.innerHTML = `
-      <button class="close-scanner" style="
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        background: rgba(255,255,255,0.2);
-        border: 1px solid #3dd2f3;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 16px;
-      ">✕ Cerrar</button>
-      <h2 style="color: white; margin-bottom: 20px;">Escanea el código QR</h2>
-      <div id="qr-reader" style="width: 90%; max-width: 500px;"></div>
-      <p style="color: #3dd2f3; margin-top: 20px; text-align: center;">
-        Apunta la cámara al código QR en la TV
-      </p>
-    `;
-    return modal;
-  }
-async processQRData(qrData, email, password) {
-  try {
-    console.log('📥 Datos del QR recibidos:', qrData);
-    let qrObject;
-    try {
-      qrObject = JSON.parse(qrData);
-    } catch (parseError) {
-      console.error('❌ Error parseando QR:', parseError);
-      throw new Error('QR inválido: formato JSON incorrecto');
-    }
-    const { id, pwd, salt } = qrObject;
-    if (!id || !pwd || !salt) {
-      console.error('❌ Datos faltantes en QR:', { 
-        hasId: !!id, 
-        hasPwd: !!pwd, 
-        hasSalt: !!salt 
-      });
-      throw new Error('QR incompleto');
-    }
-    console.log('✅ QR válido:', {
-      documentId: id,
-      pwdLength: pwd.length,
-      saltLength: salt.length
-    });
-    const token = await this.encryptCredentials(email, password, pwd, salt);
-    console.log('✅ Token cifrado:', {
-      length: token.length,
-      preview: token.substring(0, 30) + '...'
-    });
-    await this.updateTempDocument(id, token);
-    HelpClass.showToast('✅ Login enviado a la TV', { 
-      duration: 3000 
-    });
-  } catch (error) {
-    console.error('❌ Error procesando QR:', {
-      mensaje: error.message,
-      stack: error.stack
-    });
-    HelpClass.showToast(`❌ ${error.message}`, {
-      duration: 4000
-    });
-  }
-}
-async encryptCredentials(email, password, key, salt) {
-  const credentials = JSON.stringify({ email, password });
-  const encoder = new TextEncoder();
-  const data = encoder.encode(credentials);
-  const saltBytes = encoder.encode(salt);
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(key),
-    'PBKDF2',
-    false,
-    ['deriveBits', 'deriveKey']
-    );
-    const cryptoKey = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: saltBytes,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt']
-    );
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      cryptoKey,
-      data
-    );
-    const combined = new Uint8Array(iv.length + encrypted.byteLength);
-    combined.set(iv);
-    combined.set(new Uint8Array(encrypted), iv.length);
-    return btoa(String.fromCharCode(...combined));
-  }
-async updateTempDocument(docId, token) {
-  const endpoint = appwriteManager.getEndpoint();
-  const projectId = appwriteManager.getProjectId();
-  const databaseId = appwriteManager.getDatabaseId();
-  const response = await fetch(
-    `${endpoint}/databases/${databaseId}/collections/temp/documents/${docId}`,
-    {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Appwrite-Project': projectId
-      },
-      body: JSON.stringify({
-        data: {
-          token: token
-        }
-      })
-    }
-  );
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Error actualizando documento: ${errorText}`);
-  }
-console.log('✅ Token enviado al documento:', docId);
-}
-
 }
