@@ -1214,10 +1214,6 @@ getHomeHTML() {
           </button>
         ` : '<div class="header-spacer"></div>'}
       </header>
-
-      <button id="diagButton" class="drawer-item">
-            🔍 Test Diagnóstico</button>
-            <!-- Contenido principal -->
       <main class="home-content">
         <!-- Selector de categorías -->
         <div id="categorySelector" class="category-section"></div>
