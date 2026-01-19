@@ -92,6 +92,48 @@ async loadManifestKey() {
     console.error('❌ Error cargando manifest key:', error);
   }
 }
+// Agregar este método a la clase Home o como utilidad separada
+async fetchWithDiagnostics(url, startByte, endByte) {
+  // 1. Verificar URL
+  console.log('🔗 URL a descargar:', url);
+  
+  // Verificar protocolo
+  if (url.startsWith('http://') && window.location.protocol === 'https:') {
+    throw new Error('Mixed Content: La URL es HTTP pero la app es HTTPS');
+  }
+
+  // 2. Primero probar sin Range header (diagnóstico)
+  try {
+    const testResponse = await fetch(url, { 
+      method: 'HEAD',
+      mode: 'cors'
+    });
+    console.log('✅ HEAD request exitoso, status:', testResponse.status);
+    console.log('📋 Headers:', Object.fromEntries(testResponse.headers.entries()));
+  } catch (headError) {
+    console.error('❌ HEAD request falló:', headError.message);
+    console.error('⚠️ Probable problema de CORS');
+    // Continuamos de todas formas para ver el error real
+  }
+
+  // 3. Hacer el fetch real con Range
+  const headers = {};
+  if (startByte !== undefined && endByte !== undefined) {
+    headers['Range'] = `bytes=${startByte}-${endByte}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'GET',
+    mode: 'cors',
+    headers
+  });
+
+  if (!response.ok && response.status !== 206) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  return response;
+}
 setupEventListeners() {
   const menuButton = document.getElementById('menuButton');
   menuButton && menuButton.addEventListener('click', () => this.toggleDrawer()); 
@@ -441,6 +483,9 @@ async handleLogout() {
   }, 1500);
 }
 async processFolderAndDisplay(folderDoc, ownerId) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 segundo
+
   try {
     console.log('🔓 Descifrando carpeta...');
     const decryptedFolder = await FolderDecryptor.decryptFolderData(folderDoc, this.folderKey);
@@ -465,35 +510,86 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     const cloudflareUrl = thumbnailResult.data.key;
     const startByte = parseInt(miniatura_data[0]);
     const endByte = parseInt(miniatura_data[1]);
-    console.log(`📥 Descargando imagen: ${startByte}-${endByte}`);
     
-    let imageUrl;
-    try {
-      imageUrl = await ImageDecryptor.downloadAndDecryptImage(
-        cloudflareUrl,
-        this.folderKey,
-        startByte,
-        endByte
-      );
-    } catch (imgError) {
-      // 🆕 Mostrar diálogo de error detallado en TV
+    // ✅ NUEVO: Validar URL antes de intentar
+    console.log(`📥 URL completa: ${cloudflareUrl}`);
+    console.log(`📦 Range: bytes=${startByte}-${endByte}`);
+    
+    // ✅ NUEVO: Verificar que la URL sea válida
+    if (!cloudflareUrl || !cloudflareUrl.startsWith('http')) {
+      throw new Error(`URL inválida: ${cloudflareUrl}`);
+    }
+
+    let imageUrl = null;
+    let lastError = null;
+
+    // ✅ NUEVO: Sistema de reintentos
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`🔄 Intento ${attempt}/${MAX_RETRIES} para ${folder_name}`);
+        
+        imageUrl = await ImageDecryptor.downloadAndDecryptImage(
+          cloudflareUrl,
+          this.folderKey,
+          startByte,
+          endByte
+        );
+        
+        // Si llegamos aquí, fue exitoso
+        console.log(`✅ Imagen descargada exitosamente en intento ${attempt}`);
+        break;
+        
+      } catch (imgError) {
+        lastError = imgError;
+        console.error(`❌ Intento ${attempt} falló:`, imgError.message);
+        
+        // ✅ NUEVO: Diagnóstico específico del error
+        if (imgError.message.includes('Failed to fetch')) {
+          console.error('🔍 Diagnóstico de "Failed to fetch":');
+          console.error('   - ¿CORS habilitado en Cloudflare? Verificar configuración');
+          console.error('   - ¿URL accesible? Probar en navegador directamente');
+          console.error('   - ¿Range headers soportados? Verificar en Cloudflare');
+          
+          // ✅ NUEVO: Intentar fetch de diagnóstico
+          try {
+            await this.diagnosticFetch(cloudflareUrl);
+          } catch (diagError) {
+            console.error('🔍 Diagnóstico adicional:', diagError.message);
+          }
+        }
+        
+        // Esperar antes de reintentar (excepto en el último intento)
+        if (attempt < MAX_RETRIES) {
+          console.log(`⏳ Esperando ${RETRY_DELAY}ms antes de reintentar...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+        }
+      }
+    }
+
+    // Si todos los intentos fallaron
+    if (!imageUrl && lastError) {
+      // Mostrar error en TV
       if (this.isTV) {
         const { ErrorDialog } = await import('../utils/error-dialog.js');
         ErrorDialog.show({
-          method: 'ImageDecryptor.downloadAndDecryptImage → generateKey',
-          message: imgError.message,
-          stack: imgError.stack?.substring(0, 500) || 'No disponible',
+          method: 'ImageDecryptor.downloadAndDecryptImage',
+          message: lastError.message,
+          stack: lastError.stack?.substring(0, 500) || 'No disponible',
           context: [
             `📁 Carpeta: ${folder_name}`,
-            `🔗 URL: ${cloudflareUrl?.substring(0, 60)}...`,
+            `🔗 URL: ${cloudflareUrl?.substring(0, 80)}...`,
             `📦 Rango bytes: ${startByte} - ${endByte}`,
-            `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`
+            `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`,
+            `⚠️ Posible causa: CORS no configurado en Cloudflare`
           ].join('\n')
         });
       }
-      throw imgError;
+      
+      this.addFolderCard(FolderCard.createErrorCard('Error de red'));
+      return;
     }
     
+    // Resto del código igual...
     const folderData = {
       imageUrl,
       folderData: decryptedFolder,
@@ -524,7 +620,6 @@ async processFolderAndDisplay(folderDoc, ownerId) {
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
     
-    // 🆕 Mostrar error detallado en TV si no se mostró antes
     if (this.isTV && !document.getElementById('tv-error-dialog')) {
       try {
         const { ErrorDialog } = await import('../utils/error-dialog.js');
@@ -535,12 +630,41 @@ async processFolderAndDisplay(folderDoc, ownerId) {
           context: `FolderDoc ID: ${folderDoc?.$id || 'desconocido'}`
         });
       } catch (importError) {
-        // Si falla la importación, mostrar toast simple
         HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
       }
     }
     
-    this.addFolderCard(FolderCard.createErrorCard('Error XDD'));
+    this.addFolderCard(FolderCard.createErrorCard('Error'));
+  }
+}
+
+// ✅ NUEVO: Método de diagnóstico
+async diagnosticFetch(url) {
+  console.log('🔍 Ejecutando fetch de diagnóstico...');
+  
+  // Probar sin headers especiales
+  try {
+    const simpleResponse = await fetch(url, { mode: 'no-cors' });
+    console.log('📋 Fetch no-cors: opaque response (esperado)');
+  } catch (e) {
+    console.error('❌ Incluso no-cors falló:', e.message);
+  }
+  
+  // Verificar si es problema de red vs CORS
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = url;
+      setTimeout(() => reject(new Error('Timeout')), 5000);
+    });
+    
+    console.log('✅ Imagen cargable como <img> - URL accesible');
+  } catch (e) {
+    console.error('❌ No cargable como imagen:', e.message);
   }
 }
 async handleFolderClick(decryptedFolder, rawDoc) {
