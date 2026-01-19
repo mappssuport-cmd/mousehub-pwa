@@ -492,7 +492,7 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
-    this.addFolderCard(FolderCard.createErrorCard('Error cargando'));
+    this.addFolderCard(FolderCard.createErrorCard('Error',error));
   }
 }
 async handleFolderClick(decryptedFolder, rawDoc) {
