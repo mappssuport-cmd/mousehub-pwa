@@ -1,6 +1,6 @@
 
 export class ImageDecryptor {
-  static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, endByte) {
+static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, endByte) {
   try {
     const fileData = new Uint8Array(encryptedFileArrayBuffer);
     console.log('📦 Archivo completo:', fileData.byteLength, 'bytes');
@@ -14,18 +14,26 @@ export class ImageDecryptor {
     const passwordBytes = encoder.encode(password);
     
     let key;
-    if (crypto && crypto.subtle && crypto.subtle.digest) {
-      // Navegadores modernos
-      const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
-      key = new Uint8Array(keyBuffer);
-    } else {
-      // Fallback simple para TVs: usar los bytes de la password directamente
-      // repetidos para alcanzar 32 bytes (SHA-256 length)
-      key = new Uint8Array(32);
-      for (let i = 0; i < 32; i++) {
-        key[i] = passwordBytes[i % passwordBytes.length];
+    
+    // Verificación más robusta para TVs
+    const hasCryptoSubtle = typeof crypto !== 'undefined' && 
+                            crypto.subtle && 
+                            typeof crypto.subtle.digest === 'function';
+    
+    if (hasCryptoSubtle) {
+      try {
+        // Navegadores modernos
+        const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
+        key = new Uint8Array(keyBuffer);
+        console.log('✅ SHA-256 usando crypto.subtle');
+      } catch (err) {
+        console.warn('⚠️ crypto.subtle.digest falló, usando fallback:', err);
+        key = this.generateFallbackKey(passwordBytes);
       }
-      console.warn('⚠️ Usando fallback SHA-256 (TV/contexto inseguro)');
+    } else {
+      // Fallback para TVs
+      console.warn('⚠️ crypto.subtle no disponible, usando fallback');
+      key = this.generateFallbackKey(passwordBytes);
     }
     
     // XOR para descifrar
@@ -41,6 +49,15 @@ export class ImageDecryptor {
     console.error('❌ Error descifrando rango XOR:', error);
     throw error;
   }
+}
+
+// Nuevo método auxiliar
+static generateFallbackKey(passwordBytes) {
+  const key = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    key[i] = passwordBytes[i % passwordBytes.length];
+  }
+  return key;
 }
 
   /**
