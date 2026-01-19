@@ -605,7 +605,7 @@ async processFolderAndDisplay(folderDoc, ownerId) {
   this.addFolderCard(FolderCard.createErrorCard('Error de red'));
   return;}
     
-    
+    // Resto del código igual...
     const folderData = {
       imageUrl,
       folderData: decryptedFolder,
@@ -1704,5 +1704,4 @@ getHomeStyles() {
     </style>
   `;
 }
-
 }
