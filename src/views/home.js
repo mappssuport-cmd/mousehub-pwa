@@ -139,6 +139,18 @@ setupEventListeners() {
   menuButton && menuButton.addEventListener('click', () => this.toggleDrawer()); 
   const logoutButton = document.getElementById('logoutButton');
   logoutButton && logoutButton.addEventListener('click', () => this.handleLogout());
+  // 🆕 AGREGAR ESTO - Botón de diagnóstico (Borrar al finalizar)
+  const diagButton = document.getElementById('diagButton');
+  if (diagButton) {
+    diagButton.addEventListener('click', async () => {
+      HelpClass.showToast('🔍 Ejecutando diagnóstico...');
+      try {
+        await this.testFullFileDownload();
+      } catch (e) {
+        HelpClass.showToast('❌ Error en diagnóstico');
+      }
+    });
+  }
   if (!this.isTV) {
     const qrLoginButton = document.getElementById('qrLoginButton');
     qrLoginButton && qrLoginButton.addEventListener('click', () => this.handleQRLogin());
@@ -1203,8 +1215,9 @@ getHomeHTML() {
         ` : '<div class="header-spacer"></div>'}
       </header>
 
-      
-      <!-- Contenido principal -->
+      <button id="diagButton" class="drawer-item">
+            🔍 Test Diagnóstico</button>
+            <!-- Contenido principal -->
       <main class="home-content">
         <!-- Selector de categorías -->
         <div id="categorySelector" class="category-section"></div>
@@ -1703,5 +1716,181 @@ getHomeStyles() {
       }
     </style>
   `;
+}
+
+
+
+// Agregar este método completo a la clase Home (Borrar al finalizar)
+async testFullFileDownload() {
+  const testUrl = 'https://pub-ad73f5ada766429fb939e2e3e2aed139.r2.dev/YXYZ.col';
+  const diagnostics = {
+    url: testUrl,
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    steps: []
+  };
+
+  try {
+    diagnostics.steps.push('🔍 === TEST DE DESCARGA COMPLETA ===');
+    diagnostics.steps.push(`📱 User-Agent: ${navigator.userAgent}`);
+    
+    // Test 1: Sin Range header
+    diagnostics.steps.push('\n🧪 TEST 1: Descarga SIN Range header');
+    const startTime1 = performance.now();
+    
+    const response1 = await fetch(testUrl, {
+      method: 'GET',
+      mode: 'cors'
+    });
+    
+    const endTime1 = performance.now();
+    diagnostics.test1 = {
+      status: response1.status,
+      statusText: response1.statusText,
+      duration: `${(endTime1 - startTime1).toFixed(2)}ms`,
+      headers: {}
+    };
+    
+    response1.headers.forEach((value, key) => {
+      diagnostics.test1.headers[key] = value;
+    });
+    
+    diagnostics.steps.push(`📊 HTTP ${response1.status} - ${response1.statusText}`);
+    diagnostics.steps.push(`⏱️ Duración: ${diagnostics.test1.duration}`);
+    diagnostics.steps.push(`📋 Content-Type: ${diagnostics.test1.headers['content-type'] || 'N/A'}`);
+    diagnostics.steps.push(`📏 Content-Length: ${diagnostics.test1.headers['content-length'] || 'N/A'}`);
+    
+    if (response1.ok) {
+      const arrayBuffer1 = await response1.arrayBuffer();
+      diagnostics.test1.downloadedBytes = arrayBuffer1.byteLength;
+      diagnostics.steps.push(`✅ Descargado: ${arrayBuffer1.byteLength} bytes`);
+    } else {
+      const errorText = await response1.text();
+      diagnostics.test1.errorBody = errorText.substring(0, 500);
+      diagnostics.steps.push(`❌ Body del error: ${errorText.substring(0, 200)}`);
+    }
+
+    // Test 2: Con Range header pequeño
+    diagnostics.steps.push('\n🧪 TEST 2: Descarga CON Range (primeros 1024 bytes)');
+    const startTime2 = performance.now();
+    
+    const response2 = await fetch(testUrl, {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'Range': 'bytes=0-1023'
+      }
+    });
+    
+    const endTime2 = performance.now();
+    diagnostics.test2 = {
+      status: response2.status,
+      statusText: response2.statusText,
+      duration: `${(endTime2 - startTime2).toFixed(2)}ms`,
+      headers: {}
+    };
+    
+    response2.headers.forEach((value, key) => {
+      diagnostics.test2.headers[key] = value;
+    });
+    
+    diagnostics.steps.push(`📊 HTTP ${response2.status} - ${response2.statusText}`);
+    diagnostics.steps.push(`⏱️ Duración: ${diagnostics.test2.duration}`);
+    diagnostics.steps.push(`📋 Content-Range: ${diagnostics.test2.headers['content-range'] || 'N/A'}`);
+    diagnostics.steps.push(`📋 Accept-Ranges: ${diagnostics.test2.headers['accept-ranges'] || 'N/A'}`);
+    
+    if (response2.ok || response2.status === 206) {
+      const arrayBuffer2 = await response2.arrayBuffer();
+      diagnostics.test2.downloadedBytes = arrayBuffer2.byteLength;
+      diagnostics.steps.push(`✅ Descargado: ${arrayBuffer2.byteLength} bytes`);
+    } else {
+      const errorText = await response2.text();
+      diagnostics.test2.errorBody = errorText.substring(0, 500);
+      diagnostics.steps.push(`❌ Body del error: ${errorText.substring(0, 200)}`);
+    }
+
+    // Test 3: Con headers adicionales
+    diagnostics.steps.push('\n🧪 TEST 3: Con headers de navegador completos');
+    const startTime3 = performance.now();
+    
+    const response3 = await fetch(testUrl, {
+      method: 'GET',
+      mode: 'cors',
+      headers: {
+        'Range': 'bytes=0-1023',
+        'Accept': '*/*',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive'
+      }
+    });
+    
+    const endTime3 = performance.now();
+    diagnostics.test3 = {
+      status: response3.status,
+      statusText: response3.statusText,
+      duration: `${(endTime3 - startTime3).toFixed(2)}ms`,
+      headers: {}
+    };
+    
+    response3.headers.forEach((value, key) => {
+      diagnostics.test3.headers[key] = value;
+    });
+    
+    diagnostics.steps.push(`📊 HTTP ${response3.status} - ${response3.statusText}`);
+    
+    if (response3.ok || response3.status === 206) {
+      const arrayBuffer3 = await response3.arrayBuffer();
+      diagnostics.test3.downloadedBytes = arrayBuffer3.byteLength;
+      diagnostics.steps.push(`✅ Descargado: ${arrayBuffer3.byteLength} bytes`);
+    } else {
+      const errorText = await response3.text();
+      diagnostics.test3.errorBody = errorText.substring(0, 500);
+      diagnostics.steps.push(`❌ Body del error: ${errorText.substring(0, 200)}`);
+    }
+
+    diagnostics.steps.push('\n📊 === RESUMEN DE TESTS ===');
+    diagnostics.steps.push(`Test 1 (sin Range): ${diagnostics.test1.status}`);
+    diagnostics.steps.push(`Test 2 (Range simple): ${diagnostics.test2.status}`);
+    diagnostics.steps.push(`Test 3 (Range + headers): ${diagnostics.test3.status}`);
+    
+    console.log('📊 Diagnósticos completos:', JSON.stringify(diagnostics, null, 2));
+    
+    if (this.isTV) {
+      const { ErrorDialog } = await import('../utils/error-dialog.js');
+      ErrorDialog.show({
+        method: 'testFullFileDownload',
+        message: 'Diagnóstico completado',
+        stack: 'Ver detalles en context',
+        context: diagnostics.steps.join('\n')
+      });
+    } else {
+      alert('Diagnóstico completo - Ver consola');
+    }
+    
+    return diagnostics;
+    
+  } catch (error) {
+    diagnostics.error = {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    };
+    diagnostics.steps.push(`\n❌ ERROR CRÍTICO: ${error.message}`);
+    
+    console.error('❌ Error en test:', error);
+    console.error('📊 Diagnósticos:', JSON.stringify(diagnostics, null, 2));
+    
+    if (this.isTV) {
+      const { ErrorDialog } = await import('../utils/error-dialog.js');
+      ErrorDialog.show({
+        method: 'testFullFileDownload',
+        message: error.message,
+        stack: error.stack?.substring(0, 500),
+        context: diagnostics.steps.join('\n')
+      });
+    }
+    
+    throw error;
+  }
 }
 }

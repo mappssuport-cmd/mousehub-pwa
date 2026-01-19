@@ -132,7 +132,7 @@ static async generateKey(password) {
       throw error;
     }
   }
- static async downloadAndDecryptImage(cloudflareUrl, password, startByte, endByte) {
+static async downloadAndDecryptImage(cloudflareUrl, password, startByte, endByte) {
   const diagnostics = {
     url: cloudflareUrl,
     startByte,
@@ -140,11 +140,10 @@ static async generateKey(password) {
     requestMethod: 'fetch with Range header',
     timestamp: new Date().toISOString(),
     steps: [],
-    environment: {} // ✅ NUEVO
+    environment: {}
   };
 
   try {
-    // ✅ NUEVO: Capturar información del entorno ANTES del fetch
     diagnostics.steps.push('🔍 Analizando entorno de ejecución');
     
     diagnostics.environment = {
@@ -166,7 +165,6 @@ static async generateKey(password) {
     diagnostics.steps.push(`🔒 Secure Context: ${diagnostics.environment.secureContext}`);
     diagnostics.steps.push(`🌍 Window Protocol: ${diagnostics.environment.windowProtocol}`);
     
-    // ✅ NUEVO: Verificar protocolo de la URL vs protocolo de la app
     const urlProtocol = cloudflareUrl.startsWith('https://') ? 'https:' : 
                         cloudflareUrl.startsWith('http://') ? 'http:' : 'unknown';
     diagnostics.urlProtocol = urlProtocol;
@@ -183,14 +181,13 @@ static async generateKey(password) {
     console.log('📥 Descargando:', cloudflareUrl);
     console.log('📦 Rango:', startByte, '-', endByte);
     
-    // Validación de URL
     diagnostics.steps.push('✅ URL validada');
     if (!cloudflareUrl || !cloudflareUrl.startsWith('http')) {
       diagnostics.steps.push(`❌ URL inválida: ${cloudflareUrl}`);
       throw new Error(`URL inválida: ${cloudflareUrl}`);
     }
 
-    // ✅ NUEVO: Intentar HEAD request primero (diagnóstico)
+    // HEAD request de diagnóstico
     diagnostics.steps.push('🔍 Intentando HEAD request para diagnóstico...');
     let headSuccess = false;
     let headError = null;
@@ -232,14 +229,13 @@ static async generateKey(password) {
       diagnostics.steps.push(`⚠️ Tipo error HEAD: ${headErr.name}`);
     }
 
-    // Intentar descarga
+    // GET request real
     diagnostics.steps.push(`🌐 Ejecutando GET con Range a: ${cloudflareUrl.substring(0, 80)}...`);
     diagnostics.steps.push(`📦 Headers: Range: bytes=${startByte}-${endByte}`);
     
     const fetchStartTime = performance.now();
     let response;
     
-    // ✅ NUEVO: Try-catch específico para el fetch
     try {
       response = await fetch(cloudflareUrl, {
         method: 'GET',
@@ -261,7 +257,6 @@ static async generateKey(password) {
       diagnostics.steps.push(`❌ Error tipo: ${fetchError.name}`);
       diagnostics.steps.push(`❌ Error mensaje: ${fetchError.message}`);
       
-      // ✅ NUEVO: Análisis del tipo de error
       if (fetchError.message.includes('Failed to fetch')) {
         diagnostics.steps.push(`🔍 "Failed to fetch" indica:`);
         diagnostics.steps.push(`   - Posible bloqueo CORS en TV`);
@@ -274,7 +269,7 @@ static async generateKey(password) {
         diagnostics.steps.push(`🔍 "NetworkError" indica problema de conectividad TV`);
       }
       
-      throw fetchError; // Re-lanzar para que lo capture el catch principal
+      throw fetchError;
     }
     
     const fetchEndTime = performance.now();
@@ -291,6 +286,52 @@ static async generateKey(password) {
     });
     diagnostics.responseHeaders = JSON.stringify(responseHeaders, null, 2);
     diagnostics.steps.push(`📋 Headers recibidos: ${Object.keys(responseHeaders).length} headers`);
+    
+    // 🆕 SI ES 503, CAPTURAR EL BODY DEL ERROR
+    if (response.status === 503) {
+      diagnostics.steps.push('⚠️ ==========================================');
+      diagnostics.steps.push('⚠️ HTTP 503 DETECTADO - SERVICIO NO DISPONIBLE');
+      diagnostics.steps.push('⚠️ ==========================================');
+      
+      try {
+        const errorBodyText = await response.text();
+        diagnostics.error503Body = errorBodyText;
+        diagnostics.error503BodyLength = errorBodyText.length;
+        diagnostics.steps.push(`📄 Body completo (${errorBodyText.length} chars):`);
+        diagnostics.steps.push(`📄 ${errorBodyText.substring(0, 1000)}`);
+        
+        // Intentar parsear como JSON
+        try {
+          const errorJson = JSON.parse(errorBodyText);
+          diagnostics.error503Json = errorJson;
+          diagnostics.steps.push('📋 Body parseado como JSON:');
+          diagnostics.steps.push(JSON.stringify(errorJson, null, 2));
+        } catch {
+          diagnostics.steps.push('📋 Body NO es JSON, es texto plano');
+        }
+        
+        // Analizar el mensaje
+        const lowerBody = errorBodyText.toLowerCase();
+        if (lowerBody.includes('rate') || lowerBody.includes('limit')) {
+          diagnostics.steps.push('🔍 POSIBLE CAUSA: Rate limiting detectado');
+        }
+        if (lowerBody.includes('cloudflare')) {
+          diagnostics.steps.push('🔍 CONFIRMADO: Error de Cloudflare');
+        }
+        if (lowerBody.includes('temporary') || lowerBody.includes('temporalmente')) {
+          diagnostics.steps.push('🔍 POSIBLE CAUSA: Error temporal del servidor');
+        }
+        if (lowerBody.includes('maintenance') || lowerBody.includes('mantenimiento')) {
+          diagnostics.steps.push('🔍 POSIBLE CAUSA: Servidor en mantenimiento');
+        }
+        
+      } catch (textError) {
+        diagnostics.steps.push(`❌ No se pudo leer body del 503: ${textError.message}`);
+      }
+      
+      diagnostics.steps.push('⚠️ ==========================================');
+      throw new Error(`HTTP 503 - Ver diagnósticos completos`);
+    }
     
     if (response.status === 206) {
       diagnostics.steps.push('✅ Descarga parcial (206) exitosa');
@@ -365,7 +406,6 @@ static async generateKey(password) {
     console.error('❌ Error descargando/descifrando:', error);
     console.error('📊 Diagnósticos completos:', diagnostics);
     
-    // Adjuntar diagnósticos al error
     error.diagnostics = diagnostics;
     throw error;
   }
