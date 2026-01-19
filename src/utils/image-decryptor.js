@@ -9,29 +9,27 @@ static async decryptByteRange(encryptedFileArrayBuffer, password, startByte, end
     const encryptedData = fileData.slice(startByte, endByte + 1);
     console.log('🔐 Datos cifrados:', encryptedData.byteLength, 'bytes');
     
+    // Derivar key SHA-256 con fallback robusto para TVs
     const encoder = new TextEncoder();
     const passwordBytes = encoder.encode(password);
     
     let key;
     
-    // ✅ Verificación más robusta ANTES de intentar usar crypto.subtle
-    const hasCryptoSubtle = typeof crypto !== 'undefined' && 
-                           crypto !== null && 
-                           typeof crypto.subtle === 'object' && 
-                           crypto.subtle !== null &&
-                           typeof crypto.subtle.digest === 'function';
-    
-    if (hasCryptoSubtle) {
-      try {
+    try {
+      // Intentar crypto.subtle solo si existe completamente
+      if (typeof crypto !== 'undefined' && 
+          crypto.subtle && 
+          typeof crypto.subtle.digest === 'function') {
+        
         const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
         key = new Uint8Array(keyBuffer);
         console.log('✅ SHA-256 usando crypto.subtle');
-      } catch (err) {
-        console.warn('⚠️ crypto.subtle.digest falló:', err.message);
-        key = this.generateFallbackKey(passwordBytes);
+      } else {
+        throw new Error('crypto.subtle no disponible');
       }
-    } else {
-      console.warn('⚠️ crypto.subtle no disponible, usando fallback');
+    } catch (err) {
+      // Fallback automático para TVs y entornos sin crypto.subtle
+      console.warn('⚠️ Usando fallback key generation:', err.message);
       key = this.generateFallbackKey(passwordBytes);
     }
     

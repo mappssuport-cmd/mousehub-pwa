@@ -366,26 +366,23 @@ async processFolderAndDisplay(folderDoc, ownerId) {
   try {
     console.log('🔓 Descifrando carpeta...');
     const decryptedFolder = await FolderDecryptor.decryptFolderData(folderDoc, this.folderKey);
-    
     if (!decryptedFolder) {
-      throw new Error('No se pudo descifrar los datos de la carpeta');
+      console.error('❌ No se pudo descifrar carpeta');
+      this.addFolderCard(FolderCard.createErrorCard('Error descifrando'));
+      return;
     }
-    
     const { folder_name, icon_folder, miniatura_data } = decryptedFolder;
     console.log(`🖼️ Buscando miniatura: ${icon_folder}`);
-    
     const thumbnailResult = await appwriteManager.getThumbnailByIconFolder(ownerId, icon_folder);
-    
     if (!thumbnailResult.success) {
-      throw new Error(`No se encontró miniatura para ${icon_folder}: ${thumbnailResult.error}`);
+      console.error('❌ No se encontró miniatura:', thumbnailResult.error);
+      this.addFolderCard(FolderCard.createErrorCard('Sin miniatura'));
+      return;
     }
-    
     const cloudflareUrl = thumbnailResult.data.key;
     const startByte = parseInt(miniatura_data[0]);
     const endByte = parseInt(miniatura_data[1]);
-    
     console.log(`📥 Descargando imagen: ${startByte}-${endByte}`);
-    
     const imageUrl = await ImageDecryptor.downloadAndDecryptImage(
       cloudflareUrl,
       this.folderKey,
@@ -398,18 +395,14 @@ async processFolderAndDisplay(folderDoc, ownerId) {
       folderData: decryptedFolder,
       rawDoc: folderDoc
     };
-    
     this.loadedFolders.push(folderData);
     const folderIndex = this.loadedFolders.length - 1;
-    
     const cardHtml = FolderCard.createCard(
       imageUrl,
       folder_name,
       folderIndex
     );
-    
     this.addFolderCard(cardHtml);
-    
     setTimeout(() => {
       const cardId = `folder-${folderIndex}`;
       const card = document.getElementById(cardId);
@@ -422,22 +415,7 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
-    
-    // 🆕 Mostrar diálogo informativo en TV
-    if (this.isTV) {
-      this.showTVErrorDialog({
-        method: 'processFolderAndDisplay',
-        message: error.message,
-        details: `
-Carpeta: ${folderDoc?.folder_name || 'Desconocida'}
-Owner ID: ${ownerId}
-Folder Key disponible: ${!!this.folderKey}
-        `.trim(),
-        stack: error.stack
-      });
-    }
-    
-    this.addFolderCard(FolderCard.createErrorCard('Error: ' + error.message));
+    this.addFolderCard(FolderCard.createErrorCard('Error errno',error));
   }
 }
 async handleFolderClick(decryptedFolder, rawDoc) {
@@ -718,7 +696,7 @@ showTVErrorDialog(errorDetails) {
 }
 
 
-//Hasta aqui
+//Hasta
 
   async handleQRLogin() {
     try {
