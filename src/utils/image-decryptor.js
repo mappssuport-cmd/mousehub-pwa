@@ -133,57 +133,129 @@ static async generateKey(password) {
     }
   }
  static async downloadAndDecryptImage(cloudflareUrl, password, startByte, endByte) {
+  const diagnostics = {
+    url: cloudflareUrl,
+    startByte,
+    endByte,
+    requestMethod: 'fetch with Range header',
+    timestamp: new Date().toISOString(),
+    steps: []
+  };
+
   try {
+    diagnostics.steps.push('🔍 Iniciando descarga');
     console.log('📥 Descargando:', cloudflareUrl);
     console.log('📦 Rango:', startByte, '-', endByte);
     
-    // ✅ CRÍTICO: Usar Range header para descargar SOLO el fragmento necesario
+    // Validación de URL
+    diagnostics.steps.push('✅ URL validada');
+    if (!cloudflareUrl || !cloudflareUrl.startsWith('http')) {
+      diagnostics.steps.push(`❌ URL inválida: ${cloudflareUrl}`);
+      throw new Error(`URL inválida: ${cloudflareUrl}`);
+    }
+
+    // Intentar descarga
+    diagnostics.steps.push(`🌐 Ejecutando fetch a: ${cloudflareUrl}`);
+    diagnostics.steps.push(`📦 Headers: Range: bytes=${startByte}-${endByte}`);
+    
+    const fetchStartTime = performance.now();
     const response = await fetch(cloudflareUrl, {
       headers: {
         'Range': `bytes=${startByte}-${endByte}`
       }
     });
+    const fetchEndTime = performance.now();
     
-    // ✅ Verificar que el servidor soportó el Range request
+    diagnostics.fetchDuration = `${(fetchEndTime - fetchStartTime).toFixed(2)}ms`;
+    diagnostics.httpStatus = response.status;
+    diagnostics.statusText = response.statusText;
+    diagnostics.steps.push(`✅ Response recibido: HTTP ${response.status}`);
+    
+    // Capturar headers de respuesta
+    const responseHeaders = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    diagnostics.responseHeaders = JSON.stringify(responseHeaders, null, 2);
+    diagnostics.steps.push(`📋 Headers recibidos: ${Object.keys(responseHeaders).length} headers`);
+    
     if (response.status === 206) {
+      diagnostics.steps.push('✅ Descarga parcial (206) exitosa');
       console.log('✅ Descarga parcial (206) exitosa');
     } else if (response.status === 200) {
+      diagnostics.steps.push('⚠️ Servidor ignoró Range, descargando archivo completo');
       console.warn('⚠️ Servidor ignoró Range, descargando archivo completo');
     } else {
-      throw new Error(`HTTP ${response.status}`);
+      diagnostics.steps.push(`❌ HTTP status inesperado: ${response.status}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
+    // Leer datos
+    diagnostics.steps.push('📥 Leyendo ArrayBuffer...');
+    const bufferStartTime = performance.now();
     const fileArrayBuffer = await response.arrayBuffer();
+    const bufferEndTime = performance.now();
+    
+    diagnostics.downloadedBytes = fileArrayBuffer.byteLength;
+    diagnostics.bufferReadDuration = `${(bufferEndTime - bufferStartTime).toFixed(2)}ms`;
+    diagnostics.steps.push(`✅ ${fileArrayBuffer.byteLength} bytes descargados`);
     console.log('✅ Datos descargados:', fileArrayBuffer.byteLength, 'bytes');
     
-    // ✅ Si fue 206, los datos YA están en el rango correcto
+    // Descifrado
+    diagnostics.steps.push('🔐 Iniciando descifrado...');
     let imageBytes;
     if (response.status === 206) {
-      // Los datos ya vienen en el rango solicitado
+      diagnostics.steps.push('🔐 Descifrando datos parciales (206)');
       const fileData = new Uint8Array(fileArrayBuffer);
+      const keyStartTime = performance.now();
       const key = await this.generateKey(password);
+      const keyEndTime = performance.now();
+      diagnostics.keyGenerationDuration = `${(keyEndTime - keyStartTime).toFixed(2)}ms`;
+      diagnostics.steps.push(`✅ Key generada en ${diagnostics.keyGenerationDuration}`);
+      
       imageBytes = new Uint8Array(fileData.length);
       for (let i = 0; i < fileData.length; i++) {
         imageBytes[i] = fileData[i] ^ key[i % key.length];
       }
+      diagnostics.steps.push(`✅ XOR aplicado a ${imageBytes.length} bytes`);
     } else {
-      // Fallback: si descargó todo, extraer el rango
+      diagnostics.steps.push('🔐 Extrayendo rango del archivo completo');
       imageBytes = await this.decryptByteRange(
         fileArrayBuffer,
         password,
         Number(startByte),
         Number(endByte)
       );
+      diagnostics.steps.push(`✅ Rango extraído: ${imageBytes.length} bytes`);
     }
     
+    // Crear Blob
+    diagnostics.steps.push('🖼️ Creando Blob...');
     const blob = new Blob([imageBytes], { type: 'image/webp' });
+    diagnostics.blobSize = blob.size;
+    diagnostics.steps.push(`✅ Blob creado: ${blob.size} bytes`);
+    
     const imageUrl = URL.createObjectURL(blob);
+    diagnostics.steps.push(`✅ Blob URL creada: ${imageUrl.substring(0, 50)}...`);
     console.log('🖼️ Imagen lista para mostrar');
+    
+    diagnostics.success = true;
     return imageUrl;
+    
   } catch (error) {
+    diagnostics.success = false;
+    diagnostics.errorMessage = error.message;
+    diagnostics.errorStack = error.stack;
+    diagnostics.steps.push(`❌ ERROR: ${error.message}`);
+    
     console.error('❌ Error descargando/descifrando:', error);
+    console.error('📊 Diagnósticos:', diagnostics);
+    
+    // Adjuntar diagnósticos al error
+    error.diagnostics = diagnostics;
     throw error;
-  }}
+  }
+}
   static revokeBlobUrl(blobUrl) {
     if (blobUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(blobUrl);
