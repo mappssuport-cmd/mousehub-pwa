@@ -139,10 +139,46 @@ static async generateKey(password) {
     endByte,
     requestMethod: 'fetch with Range header',
     timestamp: new Date().toISOString(),
-    steps: []
+    steps: [],
+    environment: {} // ✅ NUEVO
   };
 
   try {
+    // ✅ NUEVO: Capturar información del entorno ANTES del fetch
+    diagnostics.steps.push('🔍 Analizando entorno de ejecución');
+    
+    diagnostics.environment = {
+      userAgent: navigator.userAgent || 'No disponible',
+      platform: navigator.platform || 'No disponible',
+      language: navigator.language || 'No disponible',
+      onLine: navigator.onLine !== undefined ? navigator.onLine : 'No disponible',
+      cookieEnabled: navigator.cookieEnabled !== undefined ? navigator.cookieEnabled : 'No disponible',
+      doNotTrack: navigator.doNotTrack || 'No disponible',
+      hardwareConcurrency: navigator.hardwareConcurrency || 'No disponible',
+      maxTouchPoints: navigator.maxTouchPoints || 'No disponible',
+      windowLocation: window.location.href || 'No disponible',
+      windowProtocol: window.location.protocol || 'No disponible',
+      secureContext: window.isSecureContext !== undefined ? window.isSecureContext : 'No disponible'
+    };
+    
+    diagnostics.steps.push(`📱 UserAgent: ${diagnostics.environment.userAgent.substring(0, 80)}...`);
+    diagnostics.steps.push(`🌐 Online: ${diagnostics.environment.onLine}`);
+    diagnostics.steps.push(`🔒 Secure Context: ${diagnostics.environment.secureContext}`);
+    diagnostics.steps.push(`🌍 Window Protocol: ${diagnostics.environment.windowProtocol}`);
+    
+    // ✅ NUEVO: Verificar protocolo de la URL vs protocolo de la app
+    const urlProtocol = cloudflareUrl.startsWith('https://') ? 'https:' : 
+                        cloudflareUrl.startsWith('http://') ? 'http:' : 'unknown';
+    diagnostics.urlProtocol = urlProtocol;
+    diagnostics.appProtocol = window.location.protocol;
+    diagnostics.protocolMismatch = urlProtocol !== diagnostics.appProtocol;
+    
+    if (diagnostics.protocolMismatch) {
+      diagnostics.steps.push(`⚠️ ADVERTENCIA: Protocolo URL (${urlProtocol}) != App (${diagnostics.appProtocol})`);
+    } else {
+      diagnostics.steps.push(`✅ Protocolos coinciden: ${urlProtocol}`);
+    }
+    
     diagnostics.steps.push('🔍 Iniciando descarga');
     console.log('📥 Descargando:', cloudflareUrl);
     console.log('📦 Rango:', startByte, '-', endByte);
@@ -154,16 +190,93 @@ static async generateKey(password) {
       throw new Error(`URL inválida: ${cloudflareUrl}`);
     }
 
+    // ✅ NUEVO: Intentar HEAD request primero (diagnóstico)
+    diagnostics.steps.push('🔍 Intentando HEAD request para diagnóstico...');
+    let headSuccess = false;
+    let headError = null;
+    
+    try {
+      const headStartTime = performance.now();
+      const headResponse = await fetch(cloudflareUrl, {
+        method: 'HEAD',
+        mode: 'cors'
+      });
+      const headEndTime = performance.now();
+      
+      headSuccess = true;
+      diagnostics.headRequest = {
+        success: true,
+        status: headResponse.status,
+        statusText: headResponse.statusText,
+        duration: `${(headEndTime - headStartTime).toFixed(2)}ms`,
+        headers: {}
+      };
+      
+      headResponse.headers.forEach((value, key) => {
+        diagnostics.headRequest.headers[key] = value;
+      });
+      
+      diagnostics.steps.push(`✅ HEAD exitoso: HTTP ${headResponse.status} en ${diagnostics.headRequest.duration}`);
+      diagnostics.steps.push(`📋 Accept-Ranges: ${diagnostics.headRequest.headers['accept-ranges'] || 'No especificado'}`);
+      diagnostics.steps.push(`📋 CORS headers: ${diagnostics.headRequest.headers['access-control-allow-origin'] || 'No presente'}`);
+      
+    } catch (headErr) {
+      headError = headErr;
+      diagnostics.headRequest = {
+        success: false,
+        error: headErr.message,
+        errorType: headErr.name,
+        errorStack: headErr.stack?.substring(0, 200)
+      };
+      diagnostics.steps.push(`❌ HEAD falló: ${headErr.message}`);
+      diagnostics.steps.push(`⚠️ Tipo error HEAD: ${headErr.name}`);
+    }
+
     // Intentar descarga
-    diagnostics.steps.push(`🌐 Ejecutando fetch a: ${cloudflareUrl}`);
+    diagnostics.steps.push(`🌐 Ejecutando GET con Range a: ${cloudflareUrl.substring(0, 80)}...`);
     diagnostics.steps.push(`📦 Headers: Range: bytes=${startByte}-${endByte}`);
     
     const fetchStartTime = performance.now();
-    const response = await fetch(cloudflareUrl, {
-      headers: {
-        'Range': `bytes=${startByte}-${endByte}`
+    let response;
+    
+    // ✅ NUEVO: Try-catch específico para el fetch
+    try {
+      response = await fetch(cloudflareUrl, {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Range': `bytes=${startByte}-${endByte}`
+        }
+      });
+      diagnostics.fetchSucceeded = true;
+    } catch (fetchError) {
+      diagnostics.fetchSucceeded = false;
+      diagnostics.fetchError = {
+        message: fetchError.message,
+        name: fetchError.name,
+        stack: fetchError.stack?.substring(0, 300),
+        toString: fetchError.toString()
+      };
+      diagnostics.steps.push(`❌ FETCH FALLÓ ANTES DE RECIBIR RESPUESTA`);
+      diagnostics.steps.push(`❌ Error tipo: ${fetchError.name}`);
+      diagnostics.steps.push(`❌ Error mensaje: ${fetchError.message}`);
+      
+      // ✅ NUEVO: Análisis del tipo de error
+      if (fetchError.message.includes('Failed to fetch')) {
+        diagnostics.steps.push(`🔍 "Failed to fetch" indica:`);
+        diagnostics.steps.push(`   - Posible bloqueo CORS en TV`);
+        diagnostics.steps.push(`   - Red no disponible en TV`);
+        diagnostics.steps.push(`   - Certificado SSL inválido`);
+        diagnostics.steps.push(`   - Timeout de red del TV`);
       }
-    });
+      
+      if (fetchError.message.includes('NetworkError')) {
+        diagnostics.steps.push(`🔍 "NetworkError" indica problema de conectividad TV`);
+      }
+      
+      throw fetchError; // Re-lanzar para que lo capture el catch principal
+    }
+    
     const fetchEndTime = performance.now();
     
     diagnostics.fetchDuration = `${(fetchEndTime - fetchStartTime).toFixed(2)}ms`;
@@ -245,11 +358,12 @@ static async generateKey(password) {
   } catch (error) {
     diagnostics.success = false;
     diagnostics.errorMessage = error.message;
+    diagnostics.errorName = error.name;
     diagnostics.errorStack = error.stack;
-    diagnostics.steps.push(`❌ ERROR: ${error.message}`);
+    diagnostics.steps.push(`❌ ERROR FINAL: ${error.message}`);
     
     console.error('❌ Error descargando/descifrando:', error);
-    console.error('📊 Diagnósticos:', diagnostics);
+    console.error('📊 Diagnósticos completos:', diagnostics);
     
     // Adjuntar diagnósticos al error
     error.diagnostics = diagnostics;

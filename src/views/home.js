@@ -546,47 +546,66 @@ async processFolderAndDisplay(folderDoc, ownerId) {
       }
     }
 
-    if (!imageUrl && lastError) {
-      if (this.isTV) {
-        const { ErrorDialog } = await import('../utils/error-dialog.js');
-        
-        // ✅ NUEVO: Usar diagnósticos del error
-        const diagnostics = lastError.diagnostics || {};
-        
-        ErrorDialog.show({
-          method: 'ImageDecryptor.downloadAndDecryptImage',
-          message: lastError.message,
-          stack: lastError.stack?.substring(0, 500) || 'No disponible',
-          context: [
-            `📁 Carpeta: ${folder_name}`,
-            `🔗 URL solicitada: ${cloudflareUrl}`,
-            `📦 Rango solicitado: ${startByte} - ${endByte}`,
-            `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`,
-            '',
-            '═══ DIAGNÓSTICO DETALLADO ═══',
-            `⏱️ Timestamp: ${diagnostics.timestamp || 'N/A'}`,
-            `🌐 HTTP Status: ${diagnostics.httpStatus || 'No recibido'}`,
-            `📄 Status Text: ${diagnostics.statusText || 'N/A'}`,
-            `📥 Bytes descargados: ${diagnostics.downloadedBytes || '0'} bytes`,
-            `⏳ Duración fetch: ${diagnostics.fetchDuration || 'N/A'}`,
-            `⏳ Duración buffer: ${diagnostics.bufferReadDuration || 'N/A'}`,
-            `🔐 Duración key gen: ${diagnostics.keyGenerationDuration || 'N/A'}`,
-            `💾 Tamaño Blob final: ${diagnostics.blobSize || 'N/A'} bytes`,
-            '',
-            '📋 HEADERS DE RESPUESTA:',
-            diagnostics.responseHeaders || 'No capturados',
-            '',
-            '📝 PASOS EJECUTADOS:',
-            ...(diagnostics.steps || ['Sin información']),
-          ].join('\n')
-        });
-      }
-      
-      this.addFolderCard(FolderCard.createErrorCard('Error de red'));
-      return;
-    }
+   if (!imageUrl && lastError) {
+  if (this.isTV) {
+    const { ErrorDialog } = await import('../utils/error-dialog.js');
     
-    // Resto del código igual...
+    const diagnostics = lastError.diagnostics || {};
+    const env = diagnostics.environment || {};
+    const headReq = diagnostics.headRequest || {};
+    
+    ErrorDialog.show({
+      method: 'ImageDecryptor.downloadAndDecryptImage',
+      message: lastError.message,
+      stack: lastError.stack?.substring(0, 500) || 'No disponible',
+      context: [
+        `📁 Carpeta: ${folder_name}`,
+        `🔗 URL solicitada: ${cloudflareUrl}`,
+        `📦 Rango solicitado: ${startByte} - ${endByte}`,
+        `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`,
+        '',
+        '═══ ENTORNO DE EJECUCIÓN ═══',
+        `📱 UserAgent: ${env.userAgent?.substring(0, 100) || 'N/A'}`,
+        `🌐 Conectado a internet: ${env.onLine}`,
+        `🔒 Contexto seguro (HTTPS): ${env.secureContext}`,
+        `🌍 Protocolo app: ${env.windowProtocol}`,
+        `🔗 Protocolo URL: ${diagnostics.urlProtocol || 'N/A'}`,
+        `⚠️ Mismatch de protocolos: ${diagnostics.protocolMismatch ? 'SÍ' : 'NO'}`,
+        '',
+        '═══ DIAGNÓSTICO HEAD REQUEST ═══',
+        `✅ HEAD exitoso: ${headReq.success ? 'SÍ' : 'NO'}`,
+        headReq.success ? `📋 HTTP Status: ${headReq.status}` : `❌ Error: ${headReq.error}`,
+        headReq.success ? `📋 Accept-Ranges: ${headReq.headers?.['accept-ranges'] || 'N/A'}` : '',
+        headReq.success ? `📋 CORS: ${headReq.headers?.['access-control-allow-origin'] || 'N/A'}` : '',
+        '',
+        '═══ DIAGNÓSTICO GET REQUEST ═══',
+        `✅ Fetch ejecutado: ${diagnostics.fetchSucceeded ? 'SÍ' : 'NO'}`,
+        diagnostics.fetchSucceeded ? `🌐 HTTP Status: ${diagnostics.httpStatus || 'No recibido'}` : `❌ Falló antes de respuesta`,
+        diagnostics.fetchSucceeded ? `📄 Status Text: ${diagnostics.statusText || 'N/A'}` : '',
+        diagnostics.fetchSucceeded ? `📥 Bytes descargados: ${diagnostics.downloadedBytes || '0'} bytes` : '',
+        diagnostics.fetchSucceeded ? `⏳ Duración fetch: ${diagnostics.fetchDuration || 'N/A'}` : '',
+        !diagnostics.fetchSucceeded && diagnostics.fetchError ? `❌ Error fetch: ${diagnostics.fetchError.message}` : '',
+        !diagnostics.fetchSucceeded && diagnostics.fetchError ? `❌ Tipo: ${diagnostics.fetchError.name}` : '',
+        '',
+        '═══ DATOS TÉCNICOS ═══',
+        `⏱️ Timestamp: ${diagnostics.timestamp || 'N/A'}`,
+        `⏳ Duración buffer: ${diagnostics.bufferReadDuration || 'N/A'}`,
+        `🔐 Duración key gen: ${diagnostics.keyGenerationDuration || 'N/A'}`,
+        `💾 Tamaño Blob final: ${diagnostics.blobSize || 'N/A'} bytes`,
+        '',
+        '📋 HEADERS DE RESPUESTA:',
+        diagnostics.responseHeaders || 'No recibidos (fetch falló)',
+        '',
+        '📝 PASOS EJECUTADOS:',
+        ...(diagnostics.steps || ['Sin información']),
+      ].join('\n')
+    });
+  }
+  
+  this.addFolderCard(FolderCard.createErrorCard('Error de red'));
+  return;}
+    
+    
     const folderData = {
       imageUrl,
       folderData: decryptedFolder,
