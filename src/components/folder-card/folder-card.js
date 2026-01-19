@@ -38,18 +38,31 @@ export class FolderCard {
       </div>
     `;
   }
-  static createErrorCard(errorMsg) {
-    return `
-      <div class="folder-card error">
-        <div class="folder-image-container">
-          <div class="error-icon">⚠️</div>
-        </div>
-        <div class="folder-name">
-          <span>${errorMsg}</span>
-        </div>
+ static createErrorCard(errorMsg, error) {
+  const errorText =
+    error instanceof Error
+      ? error.message
+      : (error ? String(error) : '');
+
+  return `
+    <div class="folder-card error">
+      <div class="folder-image-container">
+        <div class="error-icon">⚠️</div>
       </div>
-    `;
-  }
+
+      <div class="folder-name">
+        <span>${errorMsg}</span>
+      </div>
+
+      ${errorText ? `
+        <div class="folder-name error-detail">
+          <span>${errorText}</span>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 
 static getStyles() {
   return `
