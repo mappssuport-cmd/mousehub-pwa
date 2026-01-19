@@ -240,84 +240,9 @@ async initializeCategorySelector() {
   ];
   let categories = placeholderCategories;
   let rawTags = [];
-  
   try {
     const tagsRawJSON = storage.get('tags_raw');
     const keyValor = storage.get('Key_valor');
-    
-    if (tagsRawJSON && keyValor) {
-      // Crear panel de depuración
-      const debugContent = this.createDebugPanel();
-      
-      this.addDebugLog('═══════════════════════════════════════', 'info');
-      this.addDebugLog('🚀 INICIANDO DESCIFRADO DE TAGS', 'info');
-      this.addDebugLog('═══════════════════════════════════════', 'info');
-      
-      const tagsRaw = JSON.parse(tagsRawJSON);
-      rawTags = tagsRaw;
-      
-      this.addDebugLog(`📋 Total de tags a descifrar: ${tagsRaw.length}`, 'info');
-      this.addDebugLog(`🔑 Key_valor presente: ${keyValor ? 'SÍ' : 'NO'}`, 'info');
-      this.addDebugLog('───────────────────────────────────────', 'info');
-      
-      const decryptedTags = [];
-      
-      for (let index = 0; index < tagsRaw.length; index++) {
-        const tag = tagsRaw[index];
-        
-        this.addDebugLog(`\n🏷️ TAG #${index + 1}/${tagsRaw.length}`, 'info');
-        this.addDebugLog(`Longitud: ${tag.length} caracteres`, 'info');
-        this.addDebugLog(`Preview: ${tag.substring(0, 50)}...`, 'info');
-        
-        try {
-          const result = await TagDecryptor.decrypt(
-            tag, 
-            keyValor,
-            (msg, type) => this.addDebugLog(msg, type)
-          );
-          
-          if (result === null) {
-            this.addDebugLog(`⚠️ Tag #${index + 1} retornó NULL`, 'warning');
-            decryptedTags.push(null);
-          } else {
-            this.addDebugLog(`✅ Tag #${index + 1} descifrado exitosamente`, 'success');
-            decryptedTags.push(result);
-          }
-          
-          this.addDebugLog('───────────────────────────────────────', 'info');
-          
-        } catch (error) {
-          this.addDebugLog(`❌ Excepción en tag #${index + 1}: ${error.message}`, 'error');
-          this.addDebugLog(`Stack: ${error.stack}`, 'error');
-          decryptedTags.push(null);
-          this.addDebugLog('───────────────────────────────────────', 'info');
-        }
-      }
-      
-      const validTags = decryptedTags.filter(tag => tag !== null);
-      
-      this.addDebugLog('\n═══════════════════════════════════════', 'info');
-      this.addDebugLog('📊 RESUMEN FINAL', 'info');
-      this.addDebugLog('═══════════════════════════════════════', 'info');
-      this.addDebugLog(`✅ Tags exitosos: ${validTags.length}`, 'success');
-      this.addDebugLog(`❌ Tags fallidos: ${tagsRaw.length - validTags.length}`, 'error');
-      this.addDebugLog(`📈 Tasa de éxito: ${((validTags.length / tagsRaw.length) * 100).toFixed(1)}%`, 'info');
-      
-      if (validTags.length > 0) {
-        categories = validTags;
-        this.addDebugLog('\n✅ Usando tags descifrados', 'success');
-        validTags.forEach((tag, i) => {
-          this.addDebugLog(`  ${i + 1}. ${tag}`, 'success');
-        });
-      } else {
-        this.addDebugLog('\n⚠️ Usando categorías placeholder', 'warning');
-        console.warn('⚠️ No se pudo descifrar ningún tag, usando placeholder');
-      }
-      
-    } else {
-      HelpClass.showToast('⚠️ No hay tags o key en storage', { duration: 3000 });
-      console.warn('⚠️ No hay tags o key en storage, usando placeholder');
-    }
   } catch (error) {
     HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
     console.error('❌ Error descifrando tags:', error);
@@ -441,23 +366,26 @@ async processFolderAndDisplay(folderDoc, ownerId) {
   try {
     console.log('🔓 Descifrando carpeta...');
     const decryptedFolder = await FolderDecryptor.decryptFolderData(folderDoc, this.folderKey);
+    
     if (!decryptedFolder) {
-      console.error('❌ No se pudo descifrar carpeta');
-      this.addFolderCard(FolderCard.createErrorCard('Error descifrando'));
-      return;
+      throw new Error('No se pudo descifrar los datos de la carpeta');
     }
+    
     const { folder_name, icon_folder, miniatura_data } = decryptedFolder;
     console.log(`🖼️ Buscando miniatura: ${icon_folder}`);
+    
     const thumbnailResult = await appwriteManager.getThumbnailByIconFolder(ownerId, icon_folder);
+    
     if (!thumbnailResult.success) {
-      console.error('❌ No se encontró miniatura:', thumbnailResult.error);
-      this.addFolderCard(FolderCard.createErrorCard('Sin miniatura'));
-      return;
+      throw new Error(`No se encontró miniatura para ${icon_folder}: ${thumbnailResult.error}`);
     }
+    
     const cloudflareUrl = thumbnailResult.data.key;
     const startByte = parseInt(miniatura_data[0]);
     const endByte = parseInt(miniatura_data[1]);
+    
     console.log(`📥 Descargando imagen: ${startByte}-${endByte}`);
+    
     const imageUrl = await ImageDecryptor.downloadAndDecryptImage(
       cloudflareUrl,
       this.folderKey,
@@ -470,14 +398,18 @@ async processFolderAndDisplay(folderDoc, ownerId) {
       folderData: decryptedFolder,
       rawDoc: folderDoc
     };
+    
     this.loadedFolders.push(folderData);
     const folderIndex = this.loadedFolders.length - 1;
+    
     const cardHtml = FolderCard.createCard(
       imageUrl,
       folder_name,
       folderIndex
     );
+    
     this.addFolderCard(cardHtml);
+    
     setTimeout(() => {
       const cardId = `folder-${folderIndex}`;
       const card = document.getElementById(cardId);
@@ -490,7 +422,22 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
-    this.addFolderCard(FolderCard.createErrorCard('Error',error));
+    
+    // 🆕 Mostrar diálogo informativo en TV
+    if (this.isTV) {
+      this.showTVErrorDialog({
+        method: 'processFolderAndDisplay',
+        message: error.message,
+        details: `
+Carpeta: ${folderDoc?.folder_name || 'Desconocida'}
+Owner ID: ${ownerId}
+Folder Key disponible: ${!!this.folderKey}
+        `.trim(),
+        stack: error.stack
+      });
+    }
+    
+    this.addFolderCard(FolderCard.createErrorCard('Error: ' + error.message));
   }
 }
 async handleFolderClick(decryptedFolder, rawDoc) {
@@ -691,6 +638,87 @@ destroy() {
     this.playbackOrchestrator = null;
   }
 }
+
+showTVErrorDialog(errorDetails) {
+  const dialog = document.createElement('div');
+  dialog.id = 'tv-error-dialog';
+  dialog.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border: 2px solid #ff6b6b;
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 80%;
+    max-height: 80%;
+    overflow-y: auto;
+    z-index: 10000;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    color: white;
+    font-family: monospace;
+  `;
+  
+  dialog.innerHTML = `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <h2 style="color: #ff6b6b; margin: 0 0 10px 0;">⚠️ Error Detectado</h2>
+      <p style="color: #ffd93d; font-size: 14px;">Información para diagnóstico</p>
+    </div>
+    
+    <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+      <strong style="color: #6BCF7F;">📍 Método:</strong>
+      <p style="margin: 5px 0; color: #fff;">${errorDetails.method || 'Desconocido'}</p>
+    </div>
+    
+    <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+      <strong style="color: #6BCF7F;">💬 Mensaje:</strong>
+      <p style="margin: 5px 0; color: #fff; word-break: break-word;">${errorDetails.message || 'Sin mensaje'}</p>
+    </div>
+    
+    <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+      <strong style="color: #6BCF7F;">🔍 Detalles:</strong>
+      <pre style="margin: 5px 0; color: #3dd2f3; font-size: 12px; white-space: pre-wrap; word-break: break-word;">${errorDetails.details || 'Sin detalles adicionales'}</pre>
+    </div>
+    
+    ${errorDetails.stack ? `
+      <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+        <strong style="color: #6BCF7F;">📚 Stack:</strong>
+        <pre style="margin: 5px 0; color: #aaa; font-size: 10px; max-height: 150px; overflow-y: auto; white-space: pre-wrap;">${errorDetails.stack}</pre>
+      </div>
+    ` : ''}
+    
+    <button id="closeTVError" style="
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+    ">✓ Cerrar</button>
+  `;
+  
+  document.body.appendChild(dialog);
+  
+  const closeBtn = document.getElementById('closeTVError');
+  closeBtn.addEventListener('click', () => {
+    dialog.remove();
+  });
+  
+  // Auto-cerrar después de 30 segundos
+  setTimeout(() => {
+    if (dialog.parentNode) {
+      dialog.remove();
+    }
+  }, 30000);
+}
+
+
+//Hasta aqui
 
   async handleQRLogin() {
     try {
@@ -897,98 +925,6 @@ async updateTempDocument(docId, token) {
 console.log('✅ Token enviado al documento:', docId);
 }
 
-
-createDebugPanel() {
-  const existingPanel = document.getElementById('debugPanel');
-  if (existingPanel) {
-    existingPanel.remove();
-  }
-
-  const panel = document.createElement('div');
-  panel.id = 'debugPanel';
-  panel.innerHTML = `
-    <div style="
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(2, 2, 14, 0.98);
-      border: 2px solid #3DD2F3;
-      border-radius: 12px;
-      padding: 20px;
-      max-width: 600px;
-      max-height: 80vh;
-      overflow-y: auto;
-      z-index: 10000;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    ">
-      <div style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        border-bottom: 1px solid #3DD2F3;
-        padding-bottom: 10px;
-      ">
-        <h3 style="margin: 0; color: #3DD2F3; font-size: 18px;">
-          🔍 Depuración de Tags
-        </h3>
-        <button id="closeDebugPanel" style="
-          background: #ff4444;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          padding: 5px 15px;
-          cursor: pointer;
-          font-size: 14px;
-        ">✕ Cerrar</button>
-      </div>
-      <div id="debugContent" style="
-        color: #ffffff;
-        font-family: monospace;
-        font-size: 13px;
-        line-height: 1.6;
-      "></div>
-    </div>
-  `;
-
-  document.body.appendChild(panel);
-
-  const closeBtn = document.getElementById('closeDebugPanel');
-  closeBtn.addEventListener('click', () => {
-    panel.remove();
-  });
-
-  return document.getElementById('debugContent');
-}
-
-addDebugLog(message, type = 'info') {
-  const debugContent = document.getElementById('debugContent');
-  if (!debugContent) return;
-
-  const colors = {
-    info: '#3DD2F3',
-    success: '#4CAF50',
-    warning: '#FFA726',
-    error: '#ff4444',
-    step: '#9C27B0'
-  };
-
-  const color = colors[type] || colors.info;
-
-  const logEntry = document.createElement('div');
-  logEntry.style.cssText = `
-    margin-bottom: 8px;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-left: 3px solid ${color};
-    border-radius: 4px;
-  `;
-  logEntry.innerHTML = `<span style="color: ${color};">${message}</span>`;
-
-  debugContent.appendChild(logEntry);
-  debugContent.scrollTop = debugContent.scrollHeight;
-}
 
 
 
