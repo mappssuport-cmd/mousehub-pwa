@@ -123,6 +123,8 @@ setupEventListeners() {
   }); 
 }
 
+//Fragmento con falla
+
 async startVideoPlayback(fromBeginning = true) {
   try {
     this.closeDetailModal();
@@ -240,9 +242,84 @@ async initializeCategorySelector() {
   ];
   let categories = placeholderCategories;
   let rawTags = [];
+  
   try {
     const tagsRawJSON = storage.get('tags_raw');
     const keyValor = storage.get('Key_valor');
+    
+    if (tagsRawJSON && keyValor) {
+      // Crear panel de depuración
+      const debugContent = this.createDebugPanel();
+      
+      this.addDebugLog('═══════════════════════════════════════', 'info');
+      this.addDebugLog('🚀 INICIANDO DESCIFRADO DE TAGS', 'info');
+      this.addDebugLog('═══════════════════════════════════════', 'info');
+      
+      const tagsRaw = JSON.parse(tagsRawJSON);
+      rawTags = tagsRaw;
+      
+      this.addDebugLog(`📋 Total de tags a descifrar: ${tagsRaw.length}`, 'info');
+      this.addDebugLog(`🔑 Key_valor presente: ${keyValor ? 'SÍ' : 'NO'}`, 'info');
+      this.addDebugLog('───────────────────────────────────────', 'info');
+      
+      const decryptedTags = [];
+      
+      for (let index = 0; index < tagsRaw.length; index++) {
+        const tag = tagsRaw[index];
+        
+        this.addDebugLog(`\n🏷️ TAG #${index + 1}/${tagsRaw.length}`, 'info');
+        this.addDebugLog(`Longitud: ${tag.length} caracteres`, 'info');
+        this.addDebugLog(`Preview: ${tag.substring(0, 50)}...`, 'info');
+        
+        try {
+          const result = await TagDecryptor.decrypt(
+            tag, 
+            keyValor,
+            (msg, type) => this.addDebugLog(msg, type)
+          );
+          
+          if (result === null) {
+            this.addDebugLog(`⚠️ Tag #${index + 1} retornó NULL`, 'warning');
+            decryptedTags.push(null);
+          } else {
+            this.addDebugLog(`✅ Tag #${index + 1} descifrado exitosamente`, 'success');
+            decryptedTags.push(result);
+          }
+          
+          this.addDebugLog('───────────────────────────────────────', 'info');
+          
+        } catch (error) {
+          this.addDebugLog(`❌ Excepción en tag #${index + 1}: ${error.message}`, 'error');
+          this.addDebugLog(`Stack: ${error.stack}`, 'error');
+          decryptedTags.push(null);
+          this.addDebugLog('───────────────────────────────────────', 'info');
+        }
+      }
+      
+      const validTags = decryptedTags.filter(tag => tag !== null);
+      
+      this.addDebugLog('\n═══════════════════════════════════════', 'info');
+      this.addDebugLog('📊 RESUMEN FINAL', 'info');
+      this.addDebugLog('═══════════════════════════════════════', 'info');
+      this.addDebugLog(`✅ Tags exitosos: ${validTags.length}`, 'success');
+      this.addDebugLog(`❌ Tags fallidos: ${tagsRaw.length - validTags.length}`, 'error');
+      this.addDebugLog(`📈 Tasa de éxito: ${((validTags.length / tagsRaw.length) * 100).toFixed(1)}%`, 'info');
+      
+      if (validTags.length > 0) {
+        categories = validTags;
+        this.addDebugLog('\n✅ Usando tags descifrados', 'success');
+        validTags.forEach((tag, i) => {
+          this.addDebugLog(`  ${i + 1}. ${tag}`, 'success');
+        });
+      } else {
+        this.addDebugLog('\n⚠️ Usando categorías placeholder', 'warning');
+        console.warn('⚠️ No se pudo descifrar ningún tag, usando placeholder');
+      }
+      
+    } else {
+      HelpClass.showToast('⚠️ No hay tags o key en storage', { duration: 3000 });
+      console.warn('⚠️ No hay tags o key en storage, usando placeholder');
+    }
   } catch (error) {
     HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
     console.error('❌ Error descifrando tags:', error);
@@ -415,7 +492,7 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
-    this.addFolderCard(FolderCard.createErrorCard('Error errno',error));
+    this.addFolderCard(FolderCard.createErrorCard('Error cargando',error));
   }
 }
 async handleFolderClick(decryptedFolder, rawDoc) {
@@ -484,6 +561,8 @@ showDetailLoading() {
   document.getElementById('detailIdownSuport').textContent = '';
   document.getElementById('detailUnifiqSuport').textContent = '';
 } 
+
+//MetodoFalla
 async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSuport, unifiqSuport }) {
   document.getElementById('detailImage').src = imageUrl;
   document.getElementById('detailTitle').textContent = title;
@@ -506,6 +585,9 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   } else {
     videoContainer.innerHTML = '';
   }
+
+  //Fragmento Falla (Ya reparado)
+  // Flags
    document.getElementById('detailIdownSuport').textContent = 
     idownSuport ? '✓ Descarga soportada' : '✗ Sin descarga';
   document.getElementById('detailUnifiqSuport').textContent = 
@@ -518,6 +600,7 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
     savedTime = memoryCache.getPlaybackTime();
     hasLocalData = cachedManifest !== null && savedTime > 0;
   } else {
+    // Importación dinámica - solo carga el módulo si realmente se necesita(Arreglado el fallo de diskCache)
     const { diskCache } = await import('../utils/disk-cache.js');
     const status = await diskCache.checkFolderStatus(title);
     hasLocalData = status.exists && status.chunkCount > 0;

@@ -6,27 +6,15 @@ export class ImageDecryptor {
     console.log('📦 Archivo completo:', fileData.byteLength, 'bytes');
     console.log('🎯 Rango solicitado:', startByte, '-', endByte);
     
+    // ✅ XOR: NO hay IV, extraer datos directamente
     const encryptedData = fileData.slice(startByte, endByte + 1);
     console.log('🔐 Datos cifrados:', encryptedData.byteLength, 'bytes');
     
-    // Derivar key SHA-256 con fallback para TVs
+    // Derivar key SHA-256
     const encoder = new TextEncoder();
     const passwordBytes = encoder.encode(password);
-    
-    let key;
-    if (crypto && crypto.subtle && crypto.subtle.digest) {
-      // Navegadores modernos
-      const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
-      key = new Uint8Array(keyBuffer);
-    } else {
-      // Fallback simple para TVs: usar los bytes de la password directamente
-      // repetidos para alcanzar 32 bytes (SHA-256 length)
-      key = new Uint8Array(32);
-      for (let i = 0; i < 32; i++) {
-        key[i] = passwordBytes[i % passwordBytes.length];
-      }
-      console.warn('⚠️ Usando fallback SHA-256 (TV/contexto inseguro)');
-    }
+    const keyBuffer = await crypto.subtle.digest('SHA-256', passwordBytes);
+    const key = new Uint8Array(keyBuffer);
     
     // XOR para descifrar
     const decrypted = new Uint8Array(encryptedData.length);
