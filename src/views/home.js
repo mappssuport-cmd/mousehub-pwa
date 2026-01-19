@@ -442,7 +442,7 @@ async loadCategoryContent(category) {
     for (const folderDoc of folders) {
       await this.processFolderAndDisplay(folderDoc, ownerId);
       if (this.isTV) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 300)); // 300ms entre carpetas
       }
     }
   } catch (error) {
@@ -484,7 +484,7 @@ async handleLogout() {
 }
 async processFolderAndDisplay(folderDoc, ownerId) {
   const MAX_RETRIES = 3;
-  const BASE_RETRY_DELAY = 1000; // 1 segundo base
+  const RETRY_DELAY = 1000; // 1 segundo
 
   try {
     console.log('🔓 Descifrando carpeta...');
@@ -511,9 +511,11 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     const startByte = parseInt(miniatura_data[0]);
     const endByte = parseInt(miniatura_data[1]);
     
+    // ✅ NUEVO: Validar URL antes de intentar
     console.log(`📥 URL completa: ${cloudflareUrl}`);
     console.log(`📦 Range: bytes=${startByte}-${endByte}`);
     
+    // ✅ NUEVO: Verificar que la URL sea válida
     if (!cloudflareUrl || !cloudflareUrl.startsWith('http')) {
       throw new Error(`URL inválida: ${cloudflareUrl}`);
     }
@@ -521,7 +523,7 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     let imageUrl = null;
     let lastError = null;
 
-    // ✅ Sistema de reintentos con backoff exponencial
+    // ✅ NUEVO: Sistema de reintentos
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         console.log(`🔄 Intento ${attempt}/${MAX_RETRIES} para ${folder_name}`);
@@ -533,6 +535,7 @@ async processFolderAndDisplay(folderDoc, ownerId) {
           endByte
         );
         
+        // Si llegamos aquí, fue exitoso
         console.log(`✅ Imagen descargada exitosamente en intento ${attempt}`);
         break;
         
@@ -540,18 +543,48 @@ async processFolderAndDisplay(folderDoc, ownerId) {
         lastError = imgError;
         console.error(`❌ Intento ${attempt} falló:`, imgError.message);
         
-        // No reintentar en el último intento
+        // ✅ NUEVO: Diagnóstico específico del error
+        if (imgError.message.includes('Failed to fetch')) {
+          console.error('🔍 Diagnóstico de "Failed to fetch":');
+          console.error('   - ¿CORS habilitado en Cloudflare? Verificar configuración');
+          console.error('   - ¿URL accesible? Probar en navegador directamente');
+          console.error('   - ¿Range headers soportados? Verificar en Cloudflare');
+          
+          // ✅ NUEVO: Intentar fetch de diagnóstico
+          try {
+            await this.diagnosticFetch(cloudflareUrl);
+          } catch (diagError) {
+            console.error('🔍 Diagnóstico adicional:', diagError.message);
+          }
+        }
+        
+        // Esperar antes de reintentar (excepto en el último intento)
         if (attempt < MAX_RETRIES) {
-          // ✅ Backoff exponencial: 1s, 2s, 4s
-          const delay = BASE_RETRY_DELAY * Math.pow(2, attempt - 1);
-          console.log(`⏳ Esperando ${delay}ms antes de reintentar...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          console.log(`⏳ Esperando ${RETRY_DELAY}ms antes de reintentar...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
         }
       }
     }
 
+    // Si todos los intentos fallaron
     if (!imageUrl && lastError) {
-      console.error(`❌ Falló después de ${MAX_RETRIES} intentos:`, lastError.message);
+      // Mostrar error en TV
+      if (this.isTV) {
+        const { ErrorDialog } = await import('../utils/error-dialog.js');
+        ErrorDialog.show({
+          method: 'ImageDecryptor.downloadAndDecryptImage',
+          message: lastError.message,
+          stack: lastError.stack?.substring(0, 500) || 'No disponible',
+          context: [
+            `📁 Carpeta: ${folder_name}`,
+            `🔗 URL: ${cloudflareUrl?.substring(0, 80)}...`,
+            `📦 Rango bytes: ${startByte} - ${endByte}`,
+            `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`,
+            `⚠️ Posible causa: CORS no configurado en Cloudflare`
+          ].join('\n')
+        });
+      }
+      
       this.addFolderCard(FolderCard.createErrorCard('Error de red'));
       return;
     }
@@ -586,6 +619,21 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
+    
+    if (this.isTV && !document.getElementById('tv-error-dialog')) {
+      try {
+        const { ErrorDialog } = await import('../utils/error-dialog.js');
+        ErrorDialog.show({
+          method: 'processFolderAndDisplay (catch general)',
+          message: error.message,
+          stack: error.stack?.substring(0, 500) || 'No disponible',
+          context: `FolderDoc ID: ${folderDoc?.$id || 'desconocido'}`
+        });
+      } catch (importError) {
+        HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
+      }
+    }
+    
     this.addFolderCard(FolderCard.createErrorCard('Error'));
   }
 }
