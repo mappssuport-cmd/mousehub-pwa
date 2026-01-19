@@ -47,9 +47,6 @@ export class Home {
     await this.loadFolderKey();
     await this.loadManifestKey(); 
   }
-
-//PARTEEEEE---3---
-
 async loadFolderKey() {
     try {
       const ownerId = storage.get('owner_id');
@@ -609,7 +606,6 @@ showDetailLoading() {
   document.getElementById('detailUnifiqSuport').textContent = '';
 } 
 
-//MetodoFalla
 async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSuport, unifiqSuport }) {
   document.getElementById('detailImage').src = imageUrl;
   document.getElementById('detailTitle').textContent = title;
@@ -668,8 +664,6 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   }
 } 
 
-
-//PARTEEE1-----------
 extractYouTubeId(url) {
   const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
   const match = url.match(regExp);
