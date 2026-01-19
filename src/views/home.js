@@ -123,8 +123,6 @@ setupEventListeners() {
   }); 
 }
 
-//Fragmento con falla
-
 async startVideoPlayback(fromBeginning = true) {
   try {
     this.closeDetailModal();
@@ -561,8 +559,6 @@ showDetailLoading() {
   document.getElementById('detailIdownSuport').textContent = '';
   document.getElementById('detailUnifiqSuport').textContent = '';
 } 
-
-//MetodoFalla
 async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSuport, unifiqSuport }) {
   document.getElementById('detailImage').src = imageUrl;
   document.getElementById('detailTitle').textContent = title;
@@ -585,9 +581,6 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   } else {
     videoContainer.innerHTML = '';
   }
-
-  //Fragmento Falla (Ya reparado)
-  // Flags
    document.getElementById('detailIdownSuport').textContent = 
     idownSuport ? '✓ Descarga soportada' : '✗ Sin descarga';
   document.getElementById('detailUnifiqSuport').textContent = 
@@ -600,7 +593,6 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
     savedTime = memoryCache.getPlaybackTime();
     hasLocalData = cachedManifest !== null && savedTime > 0;
   } else {
-    // Importación dinámica - solo carga el módulo si realmente se necesita(Arreglado el fallo de diskCache)
     const { diskCache } = await import('../utils/disk-cache.js');
     const status = await diskCache.checkFolderStatus(title);
     hasLocalData = status.exists && status.chunkCount > 0;
