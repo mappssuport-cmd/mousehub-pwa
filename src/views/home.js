@@ -92,48 +92,6 @@ async loadManifestKey() {
     console.error('❌ Error cargando manifest key:', error);
   }
 }
-// Agregar este método a la clase Home o como utilidad separada
-async fetchWithDiagnostics(url, startByte, endByte) {
-  // 1. Verificar URL
-  console.log('🔗 URL a descargar:', url);
-  
-  // Verificar protocolo
-  if (url.startsWith('http://') && window.location.protocol === 'https:') {
-    throw new Error('Mixed Content: La URL es HTTP pero la app es HTTPS');
-  }
-
-  // 2. Primero probar sin Range header (diagnóstico)
-  try {
-    const testResponse = await fetch(url, { 
-      method: 'HEAD',
-      mode: 'cors'
-    });
-    console.log('✅ HEAD request exitoso, status:', testResponse.status);
-    console.log('📋 Headers:', Object.fromEntries(testResponse.headers.entries()));
-  } catch (headError) {
-    console.error('❌ HEAD request falló:', headError.message);
-    console.error('⚠️ Probable problema de CORS');
-    // Continuamos de todas formas para ver el error real
-  }
-
-  // 3. Hacer el fetch real con Range
-  const headers = {};
-  if (startByte !== undefined && endByte !== undefined) {
-    headers['Range'] = `bytes=${startByte}-${endByte}`;
-  }
-
-  const response = await fetch(url, {
-    method: 'GET',
-    mode: 'cors',
-    headers
-  });
-
-  if (!response.ok && response.status !== 206) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return response;
-}
 setupEventListeners() {
   const menuButton = document.getElementById('menuButton');
   menuButton && menuButton.addEventListener('click', () => this.toggleDrawer()); 
@@ -287,81 +245,38 @@ async initializeCategorySelector() {
     const keyValor = storage.get('Key_valor');
     
     if (tagsRawJSON && keyValor) {
-      // Crear panel de depuración
-      const debugContent = this.createDebugPanel();
-      
-      this.addDebugLog('═══════════════════════════════════════', 'info');
-      this.addDebugLog('🚀 INICIANDO DESCIFRADO DE TAGS', 'info');
-      this.addDebugLog('═══════════════════════════════════════', 'info');
-      
       const tagsRaw = JSON.parse(tagsRawJSON);
       rawTags = tagsRaw;
-      
-      this.addDebugLog(`📋 Total de tags a descifrar: ${tagsRaw.length}`, 'info');
-      this.addDebugLog(`🔑 Key_valor presente: ${keyValor ? 'SÍ' : 'NO'}`, 'info');
-      this.addDebugLog('───────────────────────────────────────', 'info');
       
       const decryptedTags = [];
       
       for (let index = 0; index < tagsRaw.length; index++) {
         const tag = tagsRaw[index];
         
-        this.addDebugLog(`\n🏷️ TAG #${index + 1}/${tagsRaw.length}`, 'info');
-        this.addDebugLog(`Longitud: ${tag.length} caracteres`, 'info');
-        this.addDebugLog(`Preview: ${tag.substring(0, 50)}...`, 'info');
-        
         try {
-          const result = await TagDecryptor.decrypt(
-            tag, 
-            keyValor,
-            (msg, type) => this.addDebugLog(msg, type)
-          );
-          
-          if (result === null) {
-            this.addDebugLog(`⚠️ Tag #${index + 1} retornó NULL`, 'warning');
-            decryptedTags.push(null);
-          } else {
-            this.addDebugLog(`✅ Tag #${index + 1} descifrado exitosamente`, 'success');
-            decryptedTags.push(result);
-          }
-          
-          this.addDebugLog('───────────────────────────────────────', 'info');
-          
+          const result = await TagDecryptor.decrypt(tag, keyValor);
+          decryptedTags.push(result === null ? null : result);
         } catch (error) {
-          this.addDebugLog(`❌ Excepción en tag #${index + 1}: ${error.message}`, 'error');
-          this.addDebugLog(`Stack: ${error.stack}`, 'error');
+          console.error(`❌ Error descifrando tag #${index + 1}:`, error);
           decryptedTags.push(null);
-          this.addDebugLog('───────────────────────────────────────', 'info');
         }
       }
       
       const validTags = decryptedTags.filter(tag => tag !== null);
       
-      this.addDebugLog('\n═══════════════════════════════════════', 'info');
-      this.addDebugLog('📊 RESUMEN FINAL', 'info');
-      this.addDebugLog('═══════════════════════════════════════', 'info');
-      this.addDebugLog(`✅ Tags exitosos: ${validTags.length}`, 'success');
-      this.addDebugLog(`❌ Tags fallidos: ${tagsRaw.length - validTags.length}`, 'error');
-      this.addDebugLog(`📈 Tasa de éxito: ${((validTags.length / tagsRaw.length) * 100).toFixed(1)}%`, 'info');
-      
       if (validTags.length > 0) {
         categories = validTags;
-        this.addDebugLog('\n✅ Usando tags descifrados', 'success');
-        validTags.forEach((tag, i) => {
-          this.addDebugLog(`  ${i + 1}. ${tag}`, 'success');
-        });
+        console.log('✅ Tags descifrados exitosamente:', validTags.length);
       } else {
-        this.addDebugLog('\n⚠️ Usando categorías placeholder', 'warning');
         console.warn('⚠️ No se pudo descifrar ningún tag, usando placeholder');
       }
       
     } else {
-      HelpClass.showToast('⚠️ No hay tags o key en storage', { duration: 3000 });
       console.warn('⚠️ No hay tags o key en storage, usando placeholder');
     }
   } catch (error) {
-    HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
     console.error('❌ Error descifrando tags:', error);
+    HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
   }
   
   this.categorySelector = new CategorySelector(
@@ -546,66 +461,13 @@ async processFolderAndDisplay(folderDoc, ownerId) {
       }
     }
 
-   if (!imageUrl && lastError) {
-  if (this.isTV) {
-    const { ErrorDialog } = await import('../utils/error-dialog.js');
+    if (!imageUrl && lastError) {
+      console.error('❌ Error descargando imagen después de todos los reintentos:', lastError);
+      HelpClass.showToast('❌ Error cargando imagen', { duration: 3000 });
+      this.addFolderCard(FolderCard.createErrorCard('Error de red'));
+      return;
+    }
     
-    const diagnostics = lastError.diagnostics || {};
-    const env = diagnostics.environment || {};
-    const headReq = diagnostics.headRequest || {};
-    
-    ErrorDialog.show({
-      method: 'ImageDecryptor.downloadAndDecryptImage',
-      message: lastError.message,
-      stack: lastError.stack?.substring(0, 500) || 'No disponible',
-      context: [
-        `📁 Carpeta: ${folder_name}`,
-        `🔗 URL solicitada: ${cloudflareUrl}`,
-        `📦 Rango solicitado: ${startByte} - ${endByte}`,
-        `🔑 FolderKey presente: ${this.folderKey ? 'Sí' : 'No'}`,
-        '',
-        '═══ ENTORNO DE EJECUCIÓN ═══',
-        `📱 UserAgent: ${env.userAgent?.substring(0, 100) || 'N/A'}`,
-        `🌐 Conectado a internet: ${env.onLine}`,
-        `🔒 Contexto seguro (HTTPS): ${env.secureContext}`,
-        `🌍 Protocolo app: ${env.windowProtocol}`,
-        `🔗 Protocolo URL: ${diagnostics.urlProtocol || 'N/A'}`,
-        `⚠️ Mismatch de protocolos: ${diagnostics.protocolMismatch ? 'SÍ' : 'NO'}`,
-        '',
-        '═══ DIAGNÓSTICO HEAD REQUEST ═══',
-        `✅ HEAD exitoso: ${headReq.success ? 'SÍ' : 'NO'}`,
-        headReq.success ? `📋 HTTP Status: ${headReq.status}` : `❌ Error: ${headReq.error}`,
-        headReq.success ? `📋 Accept-Ranges: ${headReq.headers?.['accept-ranges'] || 'N/A'}` : '',
-        headReq.success ? `📋 CORS: ${headReq.headers?.['access-control-allow-origin'] || 'N/A'}` : '',
-        '',
-        '═══ DIAGNÓSTICO GET REQUEST ═══',
-        `✅ Fetch ejecutado: ${diagnostics.fetchSucceeded ? 'SÍ' : 'NO'}`,
-        diagnostics.fetchSucceeded ? `🌐 HTTP Status: ${diagnostics.httpStatus || 'No recibido'}` : `❌ Falló antes de respuesta`,
-        diagnostics.fetchSucceeded ? `📄 Status Text: ${diagnostics.statusText || 'N/A'}` : '',
-        diagnostics.fetchSucceeded ? `📥 Bytes descargados: ${diagnostics.downloadedBytes || '0'} bytes` : '',
-        diagnostics.fetchSucceeded ? `⏳ Duración fetch: ${diagnostics.fetchDuration || 'N/A'}` : '',
-        !diagnostics.fetchSucceeded && diagnostics.fetchError ? `❌ Error fetch: ${diagnostics.fetchError.message}` : '',
-        !diagnostics.fetchSucceeded && diagnostics.fetchError ? `❌ Tipo: ${diagnostics.fetchError.name}` : '',
-        '',
-        '═══ DATOS TÉCNICOS ═══',
-        `⏱️ Timestamp: ${diagnostics.timestamp || 'N/A'}`,
-        `⏳ Duración buffer: ${diagnostics.bufferReadDuration || 'N/A'}`,
-        `🔐 Duración key gen: ${diagnostics.keyGenerationDuration || 'N/A'}`,
-        `💾 Tamaño Blob final: ${diagnostics.blobSize || 'N/A'} bytes`,
-        '',
-        '📋 HEADERS DE RESPUESTA:',
-        diagnostics.responseHeaders || 'No recibidos (fetch falló)',
-        '',
-        '📝 PASOS EJECUTADOS:',
-        ...(diagnostics.steps || ['Sin información']),
-      ].join('\n')
-    });
-  }
-  
-  this.addFolderCard(FolderCard.createErrorCard('Error de red'));
-  return;}
-    
-    // Resto del código igual...
     const folderData = {
       imageUrl,
       folderData: decryptedFolder,
@@ -635,54 +497,11 @@ async processFolderAndDisplay(folderDoc, ownerId) {
     
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
-    
-    if (this.isTV && !document.getElementById('tv-error-dialog')) {
-      try {
-        const { ErrorDialog } = await import('../utils/error-dialog.js');
-        ErrorDialog.show({
-          method: 'processFolderAndDisplay (catch general)',
-          message: error.message,
-          stack: error.stack?.substring(0, 500) || 'No disponible',
-          context: `FolderDoc ID: ${folderDoc?.$id || 'desconocido'}`
-        });
-      } catch (importError) {
-        HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
-      }
-    }
-    
+    HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
     this.addFolderCard(FolderCard.createErrorCard('Error'));
   }
 }
 
-// ✅ NUEVO: Método de diagnóstico
-async diagnosticFetch(url) {
-  console.log('🔍 Ejecutando fetch de diagnóstico...');
-  
-  // Probar sin headers especiales
-  try {
-    const simpleResponse = await fetch(url, { mode: 'no-cors' });
-    console.log('📋 Fetch no-cors: opaque response (esperado)');
-  } catch (e) {
-    console.error('❌ Incluso no-cors falló:', e.message);
-  }
-  
-  // Verificar si es problema de red vs CORS
-  try {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = () => reject(new Error('Image load failed'));
-      img.src = url;
-      setTimeout(() => reject(new Error('Timeout')), 5000);
-    });
-    
-    console.log('✅ Imagen cargable como <img> - URL accesible');
-  } catch (e) {
-    console.error('❌ No cargable como imagen:', e.message);
-  }
-}
 async handleFolderClick(decryptedFolder, rawDoc) {
   console.log('🖱️ Click en carpeta:', decryptedFolder.folder_name);
   this.currentSelectedFolder = decryptedFolder;
@@ -1090,98 +909,6 @@ async updateTempDocument(docId, token) {
 console.log('✅ Token enviado al documento:', docId);
 }
 
-
-createDebugPanel() {
-  const existingPanel = document.getElementById('debugPanel');
-  if (existingPanel) {
-    existingPanel.remove();
-  }
-
-  const panel = document.createElement('div');
-  panel.id = 'debugPanel';
-  panel.innerHTML = `
-    <div style="
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(2, 2, 14, 0.98);
-      border: 2px solid #3DD2F3;
-      border-radius: 12px;
-      padding: 20px;
-      max-width: 600px;
-      max-height: 80vh;
-      overflow-y: auto;
-      z-index: 10000;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    ">
-      <div style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        border-bottom: 1px solid #3DD2F3;
-        padding-bottom: 10px;
-      ">
-        <h3 style="margin: 0; color: #3DD2F3; font-size: 18px;">
-          🔍 Depuración de Tags
-        </h3>
-        <button id="closeDebugPanel" style="
-          background: #ff4444;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          padding: 5px 15px;
-          cursor: pointer;
-          font-size: 14px;
-        ">✕ Cerrar</button>
-      </div>
-      <div id="debugContent" style="
-        color: #ffffff;
-        font-family: monospace;
-        font-size: 13px;
-        line-height: 1.6;
-      "></div>
-    </div>
-  `;
-
-  document.body.appendChild(panel);
-
-  const closeBtn = document.getElementById('closeDebugPanel');
-  closeBtn.addEventListener('click', () => {
-    panel.remove();
-  });
-
-  return document.getElementById('debugContent');
-}
-
-addDebugLog(message, type = 'info') {
-  const debugContent = document.getElementById('debugContent');
-  if (!debugContent) return;
-
-  const colors = {
-    info: '#3DD2F3',
-    success: '#4CAF50',
-    warning: '#FFA726',
-    error: '#ff4444',
-    step: '#9C27B0'
-  };
-
-  const color = colors[type] || colors.info;
-
-  const logEntry = document.createElement('div');
-  logEntry.style.cssText = `
-    margin-bottom: 8px;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-left: 3px solid ${color};
-    border-radius: 4px;
-  `;
-  logEntry.innerHTML = `<span style="color: ${color};">${message}</span>`;
-
-  debugContent.appendChild(logEntry);
-  debugContent.scrollTop = debugContent.scrollHeight;
-}
 
 
 

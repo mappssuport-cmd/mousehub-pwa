@@ -165,12 +165,18 @@ async loadChunkToActive(chunkBlob, chunkIndex, startTime = 0) {
   this.activeBlobUrl = URL.createObjectURL(chunkBlob);
   this.activePlayer.src = this.activeBlobUrl;
   this.activePlayer.preload = 'auto';
-  const physicalTime = SeekCalculator.logicalToPhysicalTime(
-    chunkIndex, 
-    startTime,
-    this.manifest.chunks
-  );
-  console.log(`🎯 Seek físico: ${physicalTime}s (preroll: ${chunkIndex > 0 ? SeekCalculator.PREROLL_MARGIN : 0}s)`);
+  
+  // Usar findChunkForTime para obtener el tiempo interno
+  const seekInfo = SeekCalculator.findChunkForTime(startTime, this.manifest.chunks);
+  let physicalTime = seekInfo.internalSecond;
+  
+  // Agregar preroll si no es el primer chunk
+  const PREROLL_MARGIN = 2; // o defínelo como constante de clase
+  if (chunkIndex > 0) {
+    physicalTime += PREROLL_MARGIN;
+  }
+  
+  console.log(`🎯 Seek físico: ${physicalTime}s (preroll: ${chunkIndex > 0 ? PREROLL_MARGIN : 0}s)`);
   
   const loadPromise = new Promise((resolve, reject) => {
     let resolved = false;

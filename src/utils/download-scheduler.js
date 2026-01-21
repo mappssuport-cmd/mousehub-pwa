@@ -27,9 +27,7 @@ export class DownloadScheduler {
     existingIndices.forEach(i => this.downloadedIndices.add(i));
     console.log('📦 Chunks existentes marcados:', existingIndices.size);
   }
-
-
-async downloadChunk(chunkIndex, maxRetries = 3) {
+  async downloadChunk(chunkIndex, maxRetries = 3) {
   if (chunkIndex < 0 || chunkIndex >= this.manifest.total_chunks) {
     throw new Error(`Índice de chunk inválido: ${chunkIndex}`);
   }
@@ -43,31 +41,47 @@ async downloadChunk(chunkIndex, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     console.log(`📥 Intento ${attempt}/${maxRetries} - Chunk ${chunkIndex}`);
     
-    const controller = new AbortController();
-    this.currentDownloadController = controller;
+    // Verificar si AbortController está disponible
+    let controller = null;
+    let useAbort = false;
     
-    let inactivityChecker = null; // ← Declarar fuera del try
+    if (typeof AbortController !== 'undefined') {
+      controller = new AbortController();
+      this.currentDownloadController = controller;
+      useAbort = true;
+    } else {
+      console.warn('⚠️ AbortController no disponible en este dispositivo');
+    }
+    
+    let inactivityChecker = null;
+    let fetchPromise = null;
 
     try {
-      // ====== TIMEOUT POR INACTIVIDAD (no timeout total) ======
+      // ====== TIMEOUT POR INACTIVIDAD ======
       let lastProgressTime = Date.now();
       const inactivityTimeout = 15000;
+      let shouldAbort = false;
       
       inactivityChecker = setInterval(() => {
         const timeSinceProgress = Date.now() - lastProgressTime;
         if (timeSinceProgress > inactivityTimeout) {
           console.warn(`⏱️ Sin progreso por ${timeSinceProgress/1000}s, cancelando...`);
-          controller.abort();
+          shouldAbort = true;
+          if (useAbort && controller) {
+            controller.abort();
+          }
         }
       }, 2000);
       
-      const response = await fetch(url, { 
-        signal: controller.signal,
-        cache: 'no-cache'
-      });
+      const fetchOptions = { cache: 'no-cache' };
+      if (useAbort && controller) {
+        fetchOptions.signal = controller.signal;
+      }
+      
+      const response = await fetch(url, fetchOptions);
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const contentLength = response.headers.get('content-length');
@@ -79,6 +93,12 @@ async downloadChunk(chunkIndex, maxRetries = 3) {
       let lastReportedProgress = 0;
 
       while (true) {
+        // Verificar abort manual (para dispositivos sin AbortController)
+        if (shouldAbort || this.isPaused || !this.isActive) {
+          reader.cancel();
+          throw new Error('Descarga cancelada');
+        }
+        
         const { done, value } = await reader.read();
         
         if (done) break;
@@ -98,17 +118,16 @@ async downloadChunk(chunkIndex, maxRetries = 3) {
         }
       }
 
-      // ====== LIMPIAR EN CASO DE ÉXITO ======
       clearInterval(inactivityChecker);
       inactivityChecker = null;
 
       const encryptedBlob = new Blob(chunks);
       
       if (encryptedBlob.size === 0) {
-        throw new Error('Blob vacío recibido');
+        throw new Error('Blob vacío recibido del servidor');
       }
 
-      console.log(`🔓 Descifrando chunk ${chunkIndex}...`);
+      console.log(`🔓 Descifrando chunk ${chunkIndex} (${(encryptedBlob.size / 1024 / 1024).toFixed(2)} MB)...`);
 
       const decryptedBlob = await CryptoManager.decryptBlob(
         encryptedBlob,
@@ -129,7 +148,6 @@ async downloadChunk(chunkIndex, maxRetries = 3) {
       return decryptedBlob;
 
     } catch (error) {
-      // ====== LIMPIAR EN CASO DE ERROR ======
       if (inactivityChecker) {
         clearInterval(inactivityChecker);
         inactivityChecker = null;
@@ -138,7 +156,12 @@ async downloadChunk(chunkIndex, maxRetries = 3) {
       this.currentDownloadController = null;
       lastError = error;
       
-      if (error.name === 'AbortError') {
+      // Detectar cancelación manual
+      const isCancelled = error.name === 'AbortError' || 
+                         error.message.includes('cancelada') ||
+                         error.message.includes('cancel');
+      
+      if (isCancelled) {
         if (this.isPaused || !this.isActive) {
           console.log(`⏹️ Descarga cancelada manualmente`);
           throw error;
@@ -166,7 +189,8 @@ async downloadChunk(chunkIndex, maxRetries = 3) {
     this.onDownloadFailed(chunkIndex, lastError.message);
   }
   
-  throw new Error(`Chunk ${chunkIndex}: ${lastError.message}`);}
+  throw lastError; // Lanzar el error original completo
+  }
 
   _selectChunksToDownload(currentIndex) {
     const toDownload = [];

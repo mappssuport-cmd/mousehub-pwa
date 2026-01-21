@@ -245,17 +245,21 @@ async _tryLoadFromCache(ownerId) {
       this.scheduler.updateCurrentIndex(chunkIndex);
       this._startPreloading(chunkIndex);
       
-      return; // Éxito, salir
+      return;
       
     } catch (error) {
       lastError = error;
       
-      if (error.name === 'AbortError') {
+      const isCancelled = error.name === 'AbortError' || 
+                         error.message.includes('cancelada') ||
+                         error.message.includes('cancel');
+      
+      if (isCancelled) {
         console.log('⏹️ Carga cancelada por el usuario');
         return;
       }
       
-      console.error(`❌ Intento ${attempt} falló:`, error);
+      console.error(`❌ Intento ${attempt} falló en _loadChunkToActive:`, error);
       
       if (attempt < maxRetries) {
         this.videoController.showLoading(
@@ -266,31 +270,42 @@ async _tryLoadFromCache(ownerId) {
     }
   }
   
-  // Todos los intentos fallaron - ofrecer opciones
+  // Todos los intentos fallaron
   console.error(`❌ Chunk ${chunkIndex} falló después de ${maxRetries} intentos`);
+  console.error(`❌ Error final:`, lastError);
   
+  const errorInfo = `Método: _loadChunkToActive
+Chunk: ${chunkIndex + 1}/${this.manifest.total_chunks}
+Error: ${lastError.message}
+${this.isTV ? 'Dispositivo: TV' : 'Dispositivo: Web/Mobile'}`;
+
   this.videoController.showError({
     title: 'Error de reproducción',
-    message: `No se pudo cargar el segmento ${chunkIndex}`,
-    details: lastError.message,
+    message: errorInfo,
     actions: [
       {
         label: 'Reintentar',
         callback: () => this._loadChunkToActive(chunkIndex, internalSecond, true)
       },
       {
-        label: 'Saltar adelante',
+        label: chunkIndex + 1 < this.manifest.total_chunks ? 'Saltar adelante' : 'Cerrar reproductor',
         callback: () => {
           if (chunkIndex + 1 < this.manifest.total_chunks) {
             this._loadChunkToActive(chunkIndex + 1, 0);
+          } else {
+            this.destroy();
+            window.history.back(); // o tu método para cerrar
           }
         }
       },
       {
-        label: 'Saltar atrás',
+        label: chunkIndex > 0 ? 'Saltar atrás' : 'Volver al inicio',
         callback: () => {
           if (chunkIndex > 0) {
             this._loadChunkToActive(chunkIndex - 1, 0);
+          } else {
+            this.destroy();
+            window.history.back();
           }
         }
       }
