@@ -170,13 +170,12 @@ async loadChunkToActive(chunkBlob, chunkIndex, startTime = 0) {
   const seekInfo = SeekCalculator.findChunkForTime(startTime, this.manifest.chunks);
   let physicalTime = seekInfo.internalSecond;
   
-  // Agregar preroll si no es el primer chunk
-  const PREROLL_MARGIN = 2; // o defínelo como constante de clase
+  // ✅ MODIFICADO: Usar constante de SeekCalculator en lugar de variable local
   if (chunkIndex > 0) {
-    physicalTime += PREROLL_MARGIN;
+    physicalTime += SeekCalculator.PREROLL_MARGIN;
   }
   
-  console.log(`🎯 Seek físico: ${physicalTime}s (preroll: ${chunkIndex > 0 ? PREROLL_MARGIN : 0}s)`);
+  console.log(`🎯 Seek físico: ${physicalTime}s (preroll: ${chunkIndex > 0 ? SeekCalculator.PREROLL_MARGIN : 0}s)`);
   
   const loadPromise = new Promise((resolve, reject) => {
     let resolved = false;

@@ -1,4 +1,5 @@
 export class SeekCalculator {
+  static PREROLL_MARGIN = 2;
   /**
    * @param {string} timeString
    * @returns {number}
@@ -79,4 +80,25 @@ export class SeekCalculator {
     if (totalDuration <= 0) return 0;
     return Math.min(100, (currentAbsoluteTime / totalDuration) * 100);
   }
+/**
+ * Convierte tiempo lógico (chunk + segundo interno) a tiempo físico del video
+ * @param {number} chunkIndex - Índice del chunk
+ * @param {number} logicalSecond - Segundo lógico dentro del chunk (0-based)
+ * @param {Array} chunks - Array de chunks del manifest
+ * @returns {number} - Tiempo físico en segundos dentro del archivo de video
+ */
+static logicalToPhysicalTime(chunkIndex, logicalSecond, chunks) {
+  if (chunkIndex < 0 || chunkIndex >= chunks.length) {
+    console.warn(`⚠️ Chunk index ${chunkIndex} fuera de rango`);
+    return 0;
+  }
+  
+  // Para chunk 0, no hay preroll
+  if (chunkIndex === 0) {
+    return logicalSecond;
+  }
+  
+  // Para chunks > 0, agregar preroll al tiempo físico
+  return logicalSecond + SeekCalculator.PREROLL_MARGIN;
+}
 }
