@@ -40,7 +40,7 @@ export class DualVideoController {
   this.manifest = manifest;
   this._render();
   this._setupEventListeners();
-  this._addIOSFullscreenPrevention(); // ← NUEVO
+  this._addIOSFullscreenPrevention();
   this._startUpdateLoop();
   console.log('🎬 DualVideoController inicializado');
 }
@@ -165,12 +165,10 @@ async loadChunkToActive(chunkBlob, chunkIndex, startTime = 0) {
   this.activeBlobUrl = URL.createObjectURL(chunkBlob);
   this.activePlayer.src = this.activeBlobUrl;
   this.activePlayer.preload = 'auto';
-  
-  // ✅ CORRECCIÓN: Pasar el array de chunks como tercer parámetro
   const physicalTime = SeekCalculator.logicalToPhysicalTime(
     chunkIndex, 
     startTime,
-    this.manifest.chunks  // ← FALTABA ESTE PARÁMETRO
+    this.manifest.chunks
   );
   console.log(`🎯 Seek físico: ${physicalTime}s (preroll: ${chunkIndex > 0 ? SeekCalculator.PREROLL_MARGIN : 0}s)`);
   
@@ -181,8 +179,6 @@ async loadChunkToActive(chunkBlob, chunkIndex, startTime = 0) {
       if (resolved) return;
       resolved = true;
       cleanup();
-      
-      // ✅ Aplicar seek físico
       this.activePlayer.currentTime = physicalTime;
       this.hideLoading();
       console.log(`✅ Player listo en chunk ${chunkIndex}, tiempo físico: ${physicalTime}s`);
@@ -255,9 +251,7 @@ async loadChunkToActive(chunkBlob, chunkIndex, startTime = 0) {
     }, 800);
   }
 }
-
 /**
- * Precarga un chunk en el player standby
  * @param {Blob} chunkBlob 
  * @param {number} chunkIndex
  */
@@ -267,11 +261,8 @@ preloadChunkToStandby(chunkBlob, chunkIndex) {
   if (this.standbyPreloadedChunkIndex === chunkIndex) {
     console.log(`✓ Chunk ${chunkIndex} ya precargado`);
     return;
-  }
-  
+  } 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  
-  // Limpiar listeners previos
   if (this.standbyPlayer._standbyMetadataHandler) {
     this.standbyPlayer.removeEventListener('canplay', this.standbyPlayer._standbyMetadataHandler);
   }
@@ -286,12 +277,9 @@ preloadChunkToStandby(chunkBlob, chunkIndex) {
   this.standbyBlobUrl = URL.createObjectURL(chunkBlob);
   this.standbyPlayer.src = this.standbyBlobUrl;
   this.standbyPlayer.preload = 'auto';
-  
-  // ✅ iOS: NO mutar el video, solo bajar volumen
-  // Esto preserva la capacidad de tener audio después
   if (isIOS) {
-    this.standbyPlayer.muted = false;  // ← CRÍTICO: mantener unmuted
-    this.standbyPlayer.volume = 0;      // ← Solo bajar volumen
+    this.standbyPlayer.muted = false;
+    this.standbyPlayer.volume = 0;
   } else {
     this.standbyPlayer.muted = true;
     this.standbyPlayer.volume = 0;

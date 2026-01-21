@@ -1,17 +1,7 @@
 export class SeekCalculator {
-  static PREROLL_MARGIN = 5;
   /**
-   * @param {Object} manifest 
-   */
-  static initFromManifest(manifest) {
-    if (manifest && manifest.preroll_margin !== undefined) {
-      this.PREROLL_MARGIN = manifest.preroll_margin;
-      console.log(`📐 Preroll margin configurado: ${this.PREROLL_MARGIN}s`);
-    }
-  }
-  /**
-   * @param {string} timeString 
-   * @returns {number} 
+   * @param {string} timeString
+   * @returns {number}
    */
   static timeToSeconds(timeString) {
     const parts = timeString.split(':').map(Number);
@@ -24,7 +14,7 @@ export class SeekCalculator {
   }
   /**
    * @param {number} totalSeconds 
-   * @returns {string} "H:MM:SS" o "MM:SS"
+   * @returns {string}
    */
   static secondsToTime(totalSeconds) {
     const hours = Math.floor(totalSeconds / 3600);
@@ -34,27 +24,6 @@ export class SeekCalculator {
       return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }
-  /**
-   * @param {number} chunkIndex 
-   * @param {Array} chunks 
-   * @returns {boolean}
-   */
-  static chunkHasPreroll(chunkIndex, chunks) {
-    if (chunkIndex <= 0) return false;
-    const chunk = chunks[chunkIndex];
-    if (chunk && chunk.has_preroll !== undefined) {
-      return chunk.has_preroll;
-    }
-    return chunkIndex > 0;
-  }
-  /**
-   * @param {number} chunkIndex 
-   * @param {Array} chunks 
-   * @returns {number}
-   */
-  static getPrerollForChunk(chunkIndex, chunks) {
-    return this.chunkHasPreroll(chunkIndex, chunks) ? this.PREROLL_MARGIN : 0;
   }
   /**
    * @param {number} absoluteSeconds
@@ -67,7 +36,7 @@ export class SeekCalculator {
       if (absoluteSeconds >= chunk.start_position && 
           absoluteSeconds < chunk.end_position) {
         
-        const internalSecond = absoluteSeconds - chunk.start_position;
+        const internalSecond = absoluteSeconds - chunk.start_position
         return {
           chunkIndex: i,
           internalSecond: internalSecond,
@@ -75,8 +44,6 @@ export class SeekCalculator {
         };
       }
     }
-
-    // Si está más allá del último chunk
     const lastChunk = chunks[chunks.length - 1];
     if (absoluteSeconds >= lastChunk.end_position) {
       return {
@@ -91,47 +58,17 @@ export class SeekCalculator {
       chunk: chunks[0]
     };
   }
-
   /**
    * @param {number} chunkIndex 
-   * @param {number} physicalTime
+   * @param {number} internalSecond 
    * @param {Array} chunks 
    * @returns {number}
    */
-  static calculateAbsoluteTime(chunkIndex, physicalTime, chunks) {
+  static calculateAbsoluteTime(chunkIndex, internalSecond, chunks) {
     if (chunkIndex < 0 || chunkIndex >= chunks.length) {
       return 0;
     }
-    const chunk = chunks[chunkIndex];
-    const preroll = this.getPrerollForChunk(chunkIndex, chunks);
-    let logicalTime = Math.max(0, physicalTime - preroll);
-    logicalTime = Math.min(logicalTime, chunk.duration);
-    
-    return chunk.start_position + logicalTime;
-  }
-  /**
-   * @param {number} chunkIndex 
-   * @param {number} logicalTime 
-   * @param {Array} chunks
-   * @returns {number} 
-   */
-  static logicalToPhysicalTime(chunkIndex, logicalTime, chunks) {
-    const preroll = this.getPrerollForChunk(chunkIndex, chunks);
-    return logicalTime + preroll;
-  }
-
-  /**
-   * @param {number} chunkIndex 
-   * @param {Array} chunks 
-   * @returns {number}
-   */
-  static getLogicalEndPhysicalTime(chunkIndex, chunks) {
-    if (chunkIndex < 0 || chunkIndex >= chunks.length) {
-      return 0;
-    }
-    const chunk = chunks[chunkIndex];
-    const preroll = this.getPrerollForChunk(chunkIndex, chunks);
-    return preroll + chunk.duration;
+    return chunks[chunkIndex].start_position + internalSecond;
   }
   /**
    * @param {number} currentAbsoluteTime 
