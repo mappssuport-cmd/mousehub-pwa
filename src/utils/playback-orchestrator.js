@@ -59,38 +59,50 @@ export class PlaybackOrchestrator {
     throw error;
   }}
   async _initialize() {
-    if (this.isInitialized) return;
-    if (this.isDestroyed) throw new Error('Orquestador destruido');
-    HelpClass.showToast('⏳ Preparando reproducción...');
-    try {
-      const ownerId = storage.get('owner_id');
-      const folderKey = storage.get('folder_key');
-      let manifestKey = storage.get('manifest_key');
-      if (!manifestKey) {
-        manifestKey = await ManifestProcessor.loadManifestKey(ownerId);
-        if (!manifestKey) throw new Error('No se pudo obtener la clave del manifest');
-      }
-      if (await this._tryLoadFromCache(ownerId)) {
-        this.isInitialized = true;
-        return;
-      }
-      console.log('📥 Descargando manifest...');
-      this.manifest = await ManifestProcessor.downloadAndDecrypt(
-        this.folderData.master_manifest,
-        folderKey,
-        manifestKey
-      );
-      await this._saveManifest();
-      await this._fetchSignedUrls(ownerId);
-      await this._saveSignedUrls();
-      this.scheduler.init(this.signedUrls, this.passwords, this.manifest);
-      this.isInitialized = true;
-      console.log('✅ Orquestador inicializado');
-    } catch (error) {
-      console.error('❌ Error inicializando:', error);
-      throw error;
+  if (this.isInitialized) return;
+  if (this.isDestroyed) throw new Error('Orquestador destruido');
+  
+  HelpClass.showToast('⏳ Preparando reproducción...');
+  
+  try {
+    const ownerId = storage.get('owner_id');
+    const folderKey = storage.get('folder_key');
+    let manifestKey = storage.get('manifest_key');
+    
+    if (!manifestKey) {
+      manifestKey = await ManifestProcessor.loadManifestKey(ownerId);
+      if (!manifestKey) throw new Error('No se pudo obtener la clave del manifest');
     }
+    
+    // ✅ FIX: Solo marca como inicializado si el caché fue exitoso
+    const cacheLoaded = await this._tryLoadFromCache(ownerId);
+    if (cacheLoaded) {
+      this.isInitialized = true;
+      return;
+    }
+    
+    // Si no hay caché, descargar manifest
+    console.log('📥 Descargando manifest...');
+    this.manifest = await ManifestProcessor.downloadAndDecrypt(
+      this.folderData.master_manifest,
+      folderKey,
+      manifestKey
+    );
+    
+    await this._saveManifest();
+    await this._fetchSignedUrls(ownerId);
+    await this._saveSignedUrls();
+    
+    this.scheduler.init(this.signedUrls, this.passwords, this.manifest);
+    
+    this.isInitialized = true;
+    console.log('✅ Orquestador inicializado');
+    
+  } catch (error) {
+    console.error('❌ Error inicializando:', error);
+    throw error;
   }
+}
 async _tryLoadFromCache(ownerId) {
   // ========== MODO TV: Solo memoria RAM ==========
   if (this.isTV) {

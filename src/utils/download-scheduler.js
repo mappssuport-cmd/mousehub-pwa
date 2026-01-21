@@ -57,7 +57,6 @@ export class DownloadScheduler {
     let fetchPromise = null;
 
     try {
-      // ====== TIMEOUT POR INACTIVIDAD ======
       let lastProgressTime = Date.now();
       const inactivityTimeout = 15000;
       let shouldAbort = false;
@@ -93,7 +92,6 @@ export class DownloadScheduler {
       let lastReportedProgress = 0;
 
       while (true) {
-        // Verificar abort manual (para dispositivos sin AbortController)
         if (shouldAbort || this.isPaused || !this.isActive) {
           reader.cancel();
           throw new Error('Descarga cancelada');
@@ -156,7 +154,6 @@ export class DownloadScheduler {
       this.currentDownloadController = null;
       lastError = error;
       
-      // Detectar cancelación manual
       const isCancelled = error.name === 'AbortError' || 
                          error.message.includes('cancelada') ||
                          error.message.includes('cancel');
@@ -189,7 +186,7 @@ export class DownloadScheduler {
     this.onDownloadFailed(chunkIndex, lastError.message);
   }
   
-  throw lastError; // Lanzar el error original completo
+  throw lastError;
   }
 
   _selectChunksToDownload(currentIndex) {
@@ -213,7 +210,7 @@ export class DownloadScheduler {
   this.isActive = true;
   this.isPaused = false;
   this.currentIndex = currentChunkIndex;
-  this.failedChunks = new Map(); // Registro de chunks fallidos
+  this.failedChunks = new Map();
   
   console.log('🚀 Iniciando precarga desde chunk', currentChunkIndex);
   
@@ -226,14 +223,13 @@ export class DownloadScheduler {
       continue;
     }
     
-    // Separar chunks que fallaron previamente
     const normalChunks = [];
     const retryChunks = [];
     
     for (const idx of chunksToDownload) {
       if (this.failedChunks.has(idx)) {
         const attempts = this.failedChunks.get(idx);
-        if (attempts < 5) { // Máximo 5 intentos por chunk
+        if (attempts < 5) {
           retryChunks.push(idx);
         }
       } else {
@@ -241,7 +237,6 @@ export class DownloadScheduler {
       }
     }
     
-    // Priorizar chunks normales sobre reintentos
     const batch = [...normalChunks, ...retryChunks].slice(0, 2);
     
     for (const index of batch) {
@@ -258,19 +253,16 @@ export class DownloadScheduler {
           this.onChunkDownloaded(index, blob);
         }
         
-        // Limpiar de fallidos si existía
         this.failedChunks.delete(index);
         
       } catch (error) {
         if (error.name === 'AbortError') break;
         
-        // Registrar fallo
         const currentAttempts = this.failedChunks.get(index) || 0;
         this.failedChunks.set(index, currentAttempts + 1);
         
         console.error(`❌ Chunk ${index} falló (intento ${currentAttempts + 1})`);
         
-        // NO marcar como descargado, seguir con el siguiente
         continue;
       }
     }
