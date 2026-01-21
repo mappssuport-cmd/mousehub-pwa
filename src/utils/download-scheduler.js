@@ -27,7 +27,7 @@ export class DownloadScheduler {
     existingIndices.forEach(i => this.downloadedIndices.add(i));
     console.log('📦 Chunks existentes marcados:', existingIndices.size);
   }
-  async downloadChunk(chunkIndex, maxRetries = 3) {
+  async downloadChunk(chunkIndex, maxRetries = 3, isUrgent = false) {
   if (chunkIndex < 0 || chunkIndex >= this.manifest.total_chunks) {
     throw new Error(`Índice de chunk inválido: ${chunkIndex}`);
   }
@@ -39,9 +39,8 @@ export class DownloadScheduler {
   let lastError = null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    console.log(`📥 Intento ${attempt}/${maxRetries} - Chunk ${chunkIndex}`);
+    console.log(`📥 Intento ${attempt}/${maxRetries} - Chunk ${chunkIndex}${isUrgent ? ' (urgente)' : ''}`);
     
-    // Verificar si AbortController está disponible
     let controller = null;
     let useAbort = false;
     
@@ -54,7 +53,6 @@ export class DownloadScheduler {
     }
     
     let inactivityChecker = null;
-    let fetchPromise = null;
 
     try {
       let lastProgressTime = Date.now();
@@ -92,7 +90,12 @@ export class DownloadScheduler {
       let lastReportedProgress = 0;
 
       while (true) {
-        if (shouldAbort || this.isPaused || !this.isActive) {
+        // ✅ CAMBIO CLAVE: Si es urgente, solo verificar abort explícito
+        // Si NO es urgente (precarga), también verificar estado del scheduler
+        const shouldCancel = shouldAbort || 
+          (!isUrgent && (this.isPaused || !this.isActive));
+        
+        if (shouldCancel) {
           reader.cancel();
           throw new Error('Descarga cancelada');
         }
@@ -159,8 +162,10 @@ export class DownloadScheduler {
                          error.message.includes('cancel');
       
       if (isCancelled) {
-        if (this.isPaused || !this.isActive) {
-          console.log(`⏹️ Descarga cancelada manualmente`);
+        // ✅ CAMBIO: Si es urgente y fue cancelado, es un abort real
+        // Si NO es urgente, verificar si fue por pausa/inactividad del scheduler
+        if (isUrgent || this.isPaused || !this.isActive) {
+          console.log(`⏹️ Descarga cancelada ${isUrgent ? '(urgente abortada)' : '(scheduler pausado)'}`);
           throw error;
         }
         console.log(`⏱️ Timeout por inactividad en intento ${attempt}`);
@@ -187,7 +192,7 @@ export class DownloadScheduler {
   }
   
   throw lastError;
-  }
+}
 
   _selectChunksToDownload(currentIndex) {
     const toDownload = [];

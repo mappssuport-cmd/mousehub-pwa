@@ -74,7 +74,6 @@ export class PlaybackOrchestrator {
       if (!manifestKey) throw new Error('No se pudo obtener la clave del manifest');
     }
     
-    // ✅ FIX: Solo marca como inicializado si el caché fue exitoso
     const cacheLoaded = await this._tryLoadFromCache(ownerId);
     if (cacheLoaded) {
       this.isInitialized = true;
@@ -248,7 +247,8 @@ async _tryLoadFromCache(ownerId) {
         console.log(`📥 Descargando chunk ${chunkIndex} (intento ${attempt})...`);
         this.videoController.showLoading(`Descargando... ${attempt}/${maxRetries}`);
         
-        blob = await this.scheduler.downloadChunk(chunkIndex);
+        // ✅ CAMBIO: Tercer parámetro true = descarga urgente
+        blob = await this.scheduler.downloadChunk(chunkIndex, 3, true);
         await this._saveChunkToCache(chunkIndex, blob);
       }
       
@@ -282,7 +282,6 @@ async _tryLoadFromCache(ownerId) {
     }
   }
   
-  // Todos los intentos fallaron
   console.error(`❌ Chunk ${chunkIndex} falló después de ${maxRetries} intentos`);
   console.error(`❌ Error final:`, lastError);
   
@@ -306,7 +305,7 @@ ${this.isTV ? 'Dispositivo: TV' : 'Dispositivo: Web/Mobile'}`;
             this._loadChunkToActive(chunkIndex + 1, 0);
           } else {
             this.destroy();
-            window.history.back(); // o tu método para cerrar
+            window.history.back();
           }
         }
       },
@@ -325,25 +324,26 @@ ${this.isTV ? 'Dispositivo: TV' : 'Dispositivo: Web/Mobile'}`;
   });
 }
   async _preloadChunkToStandby(chunkIndex) {
-    if (this.isDestroyed) return;
-    if (chunkIndex >= this.manifest.total_chunks) {
-      console.log('📍 No hay más chunks');
+  if (this.isDestroyed) return;
+  if (chunkIndex >= this.manifest.total_chunks) {
+    console.log('📍 No hay más chunks');
+    return;
+  }
+  let blob = await this._getChunkFromCache(chunkIndex);
+  if (!blob) {
+    console.log(`📥 Descargando para standby: chunk ${chunkIndex}`);
+    try {
+      // ✅ CAMBIO: isUrgent = true porque es una descarga directa, no del loop de precarga
+      blob = await this.scheduler.downloadChunk(chunkIndex, 3, true);
+      await this._saveChunkToCache(chunkIndex, blob);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error(`❌ Error precargando chunk ${chunkIndex}:`, error);
       return;
     }
-    let blob = await this._getChunkFromCache(chunkIndex);
-    if (!blob) {
-      console.log(`📥 Descargando para standby: chunk ${chunkIndex}`);
-      try {
-        blob = await this.scheduler.downloadChunk(chunkIndex);
-        await this._saveChunkToCache(chunkIndex, blob);
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-        console.error(`❌ Error precargando chunk ${chunkIndex}:`, error);
-        return;
-      }
-    }
-    this.videoController.preloadChunkToStandby(blob, chunkIndex);
   }
+  this.videoController.preloadChunkToStandby(blob, chunkIndex);
+}
  _startPreloading(currentChunkIndex) {
   if (this.isTV) {
     const nextChunk = currentChunkIndex + 1;

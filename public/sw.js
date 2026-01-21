@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mousehub-v1.3.8';
+const CACHE_NAME = 'mousehub-v1.4.1';
 const urlsToCache = [
   '/',
   '/index.html',
