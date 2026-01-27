@@ -63,9 +63,6 @@
   --safe-area-inset-right: env(safe-area-inset-right, 0px);
 }
 
-/* ========================================
-   RESET Y BASE
-   ======================================== */
 *,
 *::before,
 *::after {

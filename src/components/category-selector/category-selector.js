@@ -38,131 +38,178 @@ export class CategorySelector {
     this.setupEventListeners();
   }
 
-  applyStyles() {
-    const style = document.createElement('style');
-    style.textContent = `
+ applyStyles() {
+  const style = document.createElement('style');
+  style.textContent = `
+    .category-selector {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px; /* REDUCIDO de 12px 16px */
+      margin: 0 16px; /* REDUCIDO de 0 24px */
+      min-height: 44px; /* REDUCIDO de 56px */
+      border-radius: 12px;
+      /* Ya tiene .glass-background-category del HTML, pero reforzamos: */
+      background: rgba(255, 255, 255, 0.04) !important; /* GLASS REAL */
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(61, 210, 243, 0.15); /* AÑADIDO borde sutil */
+    }
+
+    .arrow-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px; /* REDUCIDO de 6px */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease;
+      width: 32px; /* AÑADIDO tamaño fijo */
+      height: 32px;
+      flex-shrink: 0; /* AÑADIDO para evitar que se comprima */
+    }
+
+    .arrow-button svg {
+      width: 24px; /* REDUCIDO de 32px */
+      height: 24px;
+    }
+
+    .arrow-button:hover {
+      transform: scale(1.1);
+    }
+
+    .arrow-button:active {
+      transform: scale(0.95);
+    }
+
+    .category-container {
+      flex: 1;
+      position: relative;
+      min-height: 32px; /* REDUCIDO de 40px */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 12px; /* REDUCIDO de 0 16px */
+      overflow: hidden;
+    }
+
+    .category-text-current,
+    .category-text-next {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      color: #3dd2f3;
+      font-size: 15px; /* REDUCIDO de 18px */
+      font-family: var(--font-primary);
+      font-weight: 600; /* REDUCIDO de bold */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 0 4px; /* AÑADIDO padding horizontal mínimo */
+    }
+
+    .category-text-next {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    /* Animaciones - SIN CAMBIOS */
+    @keyframes slideOutLeft {
+      from {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateX(-100%);
+      }
+    }
+
+    @keyframes slideOutRight {
+      from {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+    }
+
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .slide-out-left {
+      animation: slideOutLeft 0.3s ease-out forwards;
+    }
+
+    .slide-out-right {
+      animation: slideOutRight 0.3s ease-out forwards;
+    }
+
+    .slide-in-left {
+      animation: slideInLeft 0.3s ease-out forwards;
+    }
+
+    .slide-in-right {
+      animation: slideInRight 0.3s ease-out forwards;
+    }
+
+    /* AÑADIDO: Responsive para móviles pequeños */
+    @media (max-width: 480px) {
       .category-selector {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        margin: 0 24px;
-        min-height: 56px;
-        border-radius: 12px;
-      }
-
-      .arrow-button {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 6px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: transform 0.2s ease;
-      }
-
-      .arrow-button:hover {
-        transform: scale(1.1);
-      }
-
-      .arrow-button:active {
-        transform: scale(0.95);
-      }
-
-      .category-container {
-        flex: 1;
-        position: relative;
+        padding: 5px 10px;
+        margin: 0 12px;
         min-height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 16px;
-        overflow: hidden;
       }
 
       .category-text-current,
       .category-text-next {
-        position: absolute;
-        width: 100%;
-        text-align: center;
-        color: #3dd2f3;
-        font-size: 18px;
-        font-family: var(--font-primary);
-        font-weight: bold;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: 14px;
       }
 
-      .category-text-next {
-        opacity: 0;
-        visibility: hidden;
+      .arrow-button {
+        width: 28px;
+        height: 28px;
+        padding: 3px;
       }
 
-      /* Animaciones */
-      @keyframes slideOutLeft {
-        from {
-          opacity: 1;
-          transform: translateX(0);
-        }
-        to {
-          opacity: 0;
-          transform: translateX(-100%);
-        }
+      .arrow-button svg {
+        width: 20px;
+        height: 20px;
       }
+    }
 
-      @keyframes slideOutRight {
-        from {
-          opacity: 1;
-          transform: translateX(0);
-        }
-        to {
-          opacity: 0;
-          transform: translateX(100%);
-        }
+    /* AÑADIDO: Responsive para tablets/desktop */
+    @media (min-width: 768px) {
+      .category-selector {
+        max-width: 600px; /* Limitar ancho en pantallas grandes */
+        margin: 0 auto; /* Centrar */
       }
-
-      @keyframes slideInLeft {
-        from {
-          opacity: 0;
-          transform: translateX(-100%);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
-      }
-
-      @keyframes slideInRight {
-        from {
-          opacity: 0;
-          transform: translateX(100%);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
-      }
-
-      .slide-out-left {
-        animation: slideOutLeft 0.3s ease-out forwards;
-      }
-
-      .slide-out-right {
-        animation: slideOutRight 0.3s ease-out forwards;
-      }
-
-      .slide-in-left {
-        animation: slideInLeft 0.3s ease-out forwards;
-      }
-
-      .slide-in-right {
-        animation: slideInRight 0.3s ease-out forwards;
-      }
-    `;
-    document.head.appendChild(style);
-  }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
   setupEventListeners() {
     const arrowLeft = document.getElementById('arrowLeft');
