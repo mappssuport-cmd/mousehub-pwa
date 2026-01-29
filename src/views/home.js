@@ -513,20 +513,41 @@ closeDetailModal() {
   }
 }
 showDetailLoading() {
-  document.getElementById('detailImage').src = '';
-  document.getElementById('detailTitle').textContent = 'Cargando...';
-  document.getElementById('detailDescription').textContent = '';
-  document.getElementById('detailVideoContainer').innerHTML = '';
-  document.getElementById('detailIdownSuport').textContent = '';
-  document.getElementById('detailUnifiqSuport').textContent = '';
+  const detailImage = document.getElementById('detailImage');
+  const detailTitle = document.getElementById('detailTitle');
+  const detailDescription = document.getElementById('detailDescription');
+  const videoContainer = document.getElementById('detailVideoContainer');
+  const descriptionContainer = document.getElementById('detailDescriptionContainer');
+  
+  if (detailImage) detailImage.src = '';
+  if (detailTitle) detailTitle.textContent = 'Cargando...';
+  if (detailDescription) detailDescription.textContent = '';
+  if (videoContainer) videoContainer.innerHTML = '';
+  if (descriptionContainer) {
+    const existingFlags = descriptionContainer.querySelector('.detail-flags');
+    if (existingFlags) {
+      existingFlags.remove();
+    }
+  }
 } 
 async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSuport, unifiqSuport }) {
-  document.getElementById('detailImage').src = imageUrl;
-  document.getElementById('detailTitle').textContent = title;
-  document.getElementById('detailDescription').textContent = description;
-  
+  const detailImage = document.getElementById('detailImage');
+  const detailTitle = document.getElementById('detailTitle');
+  const detailDescription = document.getElementById('detailDescription');
   const videoContainer = document.getElementById('detailVideoContainer');
-  // CAMBIO: Solo crear iframe si hay URL válida
+  const descriptionContainer = document.getElementById('detailDescriptionContainer');
+  
+  // Validar que los elementos existan antes de modificarlos
+  if (!detailImage || !detailTitle || !detailDescription || !videoContainer || !descriptionContainer) {
+    console.error('❌ Elementos del modal no encontrados');
+    return;
+  }
+  
+  detailImage.src = imageUrl;
+  detailTitle.textContent = title;
+  detailDescription.textContent = description;
+  
+  // Video - Solo crear iframe si hay URL válida
   if (youtubeUrl && youtubeUrl.trim()) {
     const videoId = this.extractYouTubeId(youtubeUrl);
     if (videoId) {
@@ -550,8 +571,7 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
     videoContainer.style.display = 'none';
   }
   
-  // CAMBIO: Movemos los badges dentro del contenedor de descripción
-  const descriptionContainer = document.getElementById('detailDescriptionContainer');
+  // Flags dentro del contenedor de descripción
   const existingFlags = descriptionContainer.querySelector('.detail-flags');
   if (existingFlags) {
     existingFlags.remove();
@@ -570,6 +590,7 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   
   descriptionContainer.insertAdjacentHTML('beforeend', flagsHTML);
   
+  // Gestión de botones Continue/Resume
   let hasLocalData = false;
   let savedTime = 0;
   
@@ -587,13 +608,15 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   const continueBtn = document.getElementById('detailContinueButton');
   const resumeBtn = document.getElementById('detailResumeButton');
   
-  if (hasLocalData && savedTime > 0) {
-    continueBtn.textContent = '▶️ Inicio';
-    resumeBtn.style.display = 'block';
-    resumeBtn.textContent = `⏯️ ${SeekCalculator.secondsToTime(savedTime)}`;
-  } else {
-    continueBtn.textContent = '▶️ Play';
-    resumeBtn.style.display = 'none';
+  if (continueBtn && resumeBtn) {
+    if (hasLocalData && savedTime > 0) {
+      continueBtn.textContent = '▶️ Inicio';
+      resumeBtn.style.display = 'block';
+      resumeBtn.textContent = `⏯️ ${SeekCalculator.secondsToTime(savedTime)}`;
+    } else {
+      continueBtn.textContent = '▶️ Play';
+      resumeBtn.style.display = 'none';
+    }
   }
 }
 extractYouTubeId(url) {
