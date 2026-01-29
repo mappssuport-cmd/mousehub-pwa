@@ -92,7 +92,8 @@ static getStyles() {
       .folder-image-container {
         position: relative;
         width: 100%;
-        padding-top: 150%;
+        /* CAMBIO: De 150% a 140% para reducir altura y evitar scroll excesivo en PC */
+        padding-top: 140%;
         overflow: hidden;
         background: rgba(0, 0, 0, 0.3);
       }
@@ -103,7 +104,11 @@ static getStyles() {
         left: 0;
         width: 100%;
         height: 100%;
-        object-fit: contain;
+        /* CAMBIO: De contain a cover para eliminar barras grises en Android */
+        /* cover rellena todo el espacio manteniendo aspecto, cortando si es necesario */
+        object-fit: cover;
+        /* CAMBIO: Centramos la imagen para que el recorte sea equilibrado */
+        object-position: center;
         transition: transform var(--transition-base);
       }
       
@@ -213,7 +218,8 @@ static getStyles() {
         }
 
         .folder-image-container {
-          padding-top: 100%;
+          /* CAMBIO: Reducimos también en móvil para mejor proporción */
+          padding-top: 130%;
         }
       }
 
