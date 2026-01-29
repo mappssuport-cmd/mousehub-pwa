@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-
 export class SplashView {
   constructor() {
     this.scene = null;
@@ -31,13 +30,12 @@ export class SplashView {
       glowPearl: 0xFFFEF5,
       trailColor: 0xE8F4FF
     };
-
     this.audioEffects = {
       effect1: new Audio('/assets/audio/efectop1.mp3'),
       effect2: new Audio('/assets/audio/efectop2.mp3')
     };
   }
- 
+
    initThreeJS() {
     const threeContainer = document.getElementById('threeContainer');
     this.scene = new THREE.Scene();
@@ -76,7 +74,6 @@ export class SplashView {
     this.onResize = this.onResize.bind(this);
     window.addEventListener('resize', this.onResize);
   }
-
     createOrb() {
       const orbGeometry = new THREE.IcosahedronGeometry(4, 4);
       const orbMaterial = new THREE.MeshPhysicalMaterial({
@@ -97,7 +94,6 @@ export class SplashView {
       this.createSimpleGlow();
       this.orbInitialY = this.orb.position.y;
     }
-
     createAtom() {
         const group = new THREE.Group();
         const nucleus = new THREE.Mesh(

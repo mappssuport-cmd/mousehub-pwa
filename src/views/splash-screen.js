@@ -2,7 +2,6 @@ import { router } from '../app.js';
 import storage from '../utils/storage-manager.js';
 import appwriteManager from '../managers/appwrite-manager.js';
 import { HelpClass } from '../utils/help-class.js';
-import * as THREE from 'three';
 import { SplashView } from '/src/utils/frontend/SplashView.js';
 
 export class SplashScreen {
@@ -13,7 +12,6 @@ export class SplashScreen {
     this.nextRoute = null;
     this.animationFinished = false;
   }
-
   async render() {
     HelpClass.setThemeColor('#02020E');
     const hasSeenWelcome = storage.get('has_seen_welcome', false);

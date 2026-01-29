@@ -113,19 +113,14 @@ setupEventListeners() {
   closeVideoBtn?.addEventListener('click', () => {
     this.hideVideoPlayerContainer();
   });
-  // Botón Reanudar
   const resumeBtn = document.getElementById('detailResumeButton');
   resumeBtn?.addEventListener('click', async () => {
-    await this.startVideoPlayback(false); // false = reanudar
+    await this.startVideoPlayback(false);
   }); 
 }
-
-//Fragmento con falla
-
 async startVideoPlayback(fromBeginning = true) {
   try {
     this.closeDetailModal();
-    // Buscar la carpeta seleccionada en los datos cargados
     const currentFolder = this.loadedFolders.find(
       f => f.folderData.folder_name === this.currentSelectedFolder?.folder_name
     );
@@ -133,32 +128,25 @@ async startVideoPlayback(fromBeginning = true) {
       HelpClass.showToast('❌ No se encontró la carpeta');
       return;
     }
-
-    // Mostrar el contenedor del reproductor
     this.showVideoPlayerContainer();
-    // Obtener el contenedor donde se renderizará el reproductor
     const playerContainer = document.getElementById('videoPlayerContainer');
-    // Crear el orquestador de reproducción
     this.playbackOrchestrator = new PlaybackOrchestrator(
       playerContainer,
       currentFolder.folderData,
       currentFolder.rawDoc,
       this.isTV
     );
-    // Iniciar reproducción según el modo
     if (fromBeginning) {
       await this.playbackOrchestrator.startFromBeginning();
     } else {
       await this.playbackOrchestrator.resumePlayback();
     }
-    
   } catch (error) {
     console.error('❌ Error iniciando reproducción:', error);
     HelpClass.showToast('❌ Error: ' + error.message);
     this.hideVideoPlayerContainer();
   }
 }
-
 showVideoPlayerContainer() {
   const container = document.getElementById('videoPlayerContainer');
   if (container) {
@@ -171,8 +159,7 @@ hideVideoPlayerContainer() {
   if (container) {
     container.style.display = 'none';
     document.body.style.overflow = '';
-  }
-  
+  } 
   if (this.playbackOrchestrator) {
     this.playbackOrchestrator.destroy();
     this.playbackOrchestrator = null;
@@ -243,16 +230,12 @@ async initializeCategorySelector() {
   try {
     const tagsRawJSON = storage.get('tags_raw');
     const keyValor = storage.get('Key_valor');
-    
     if (tagsRawJSON && keyValor) {
       const tagsRaw = JSON.parse(tagsRawJSON);
       rawTags = tagsRaw;
-      
       const decryptedTags = [];
-      
       for (let index = 0; index < tagsRaw.length; index++) {
         const tag = tagsRaw[index];
-        
         try {
           const result = await TagDecryptor.decrypt(tag, keyValor);
           decryptedTags.push(result === null ? null : result);
@@ -261,16 +244,13 @@ async initializeCategorySelector() {
           decryptedTags.push(null);
         }
       }
-      
       const validTags = decryptedTags.filter(tag => tag !== null);
-      
       if (validTags.length > 0) {
         categories = validTags;
         console.log('✅ Tags descifrados exitosamente:', validTags.length);
       } else {
         console.warn('⚠️ No se pudo descifrar ningún tag, usando placeholder');
       }
-      
     } else {
       console.warn('⚠️ No hay tags o key en storage, usando placeholder');
     }
@@ -289,8 +269,11 @@ async initializeCategorySelector() {
       this.loadCategoryContent(category);
     }
   ); 
-  
   this.categorySelector.render();
+  if (categories.length > 0 && rawTags.length > 0) {
+    this.currentRawTag = rawTags[0];
+    await this.loadCategoryContent(categories[0]);
+  }
 }
 loadUserInfo() {
   const userName = storage.get('nombre', 'Usuario');
@@ -353,11 +336,10 @@ async loadCategoryContent(category) {
       return;
     }
     this.clearFoldersContainer();
-    
     for (const folderDoc of folders) {
       await this.processFolderAndDisplay(folderDoc, ownerId);
       if (this.isTV) {
-        await new Promise(resolve => setTimeout(resolve, 300)); // 300ms entre carpetas
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
     }
   } catch (error) {
@@ -365,8 +347,6 @@ async loadCategoryContent(category) {
     HelpClass.showToast('❌ Error: ' + error.message);
   }
 }
-//PARTEEE2----
-
 toggleDrawer() {
     if (this.isDrawerOpen) {
       this.closeDrawer();
@@ -400,91 +380,71 @@ async handleLogout() {
 async processFolderAndDisplay(folderDoc, ownerId) {
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 1000;
-
   try {
     console.log('🔓 Descifrando carpeta...');
     const decryptedFolder = await FolderDecryptor.decryptFolderData(folderDoc, this.folderKey);
-    
     if (!decryptedFolder) {
       console.error('❌ No se pudo descifrar carpeta');
       this.addFolderCard(FolderCard.createErrorCard('Error descifrando'));
       return;
     }
-    
     const { folder_name, icon_folder, miniatura_data } = decryptedFolder;
     console.log(`🖼️ Buscando miniatura: ${icon_folder}`);
-    
     const thumbnailResult = await appwriteManager.getThumbnailByIconFolder(ownerId, icon_folder);
-    
     if (!thumbnailResult.success) {
       console.error('❌ No se encontró miniatura:', thumbnailResult.error);
       this.addFolderCard(FolderCard.createErrorCard('Sin miniatura'));
       return;
     }
-    
     const cloudflareUrl = thumbnailResult.data.key;
     const startByte = parseInt(miniatura_data[0]);
     const endByte = parseInt(miniatura_data[1]);
-    
     console.log(`📥 URL completa: ${cloudflareUrl}`);
     console.log(`📦 Range: bytes=${startByte}-${endByte}`);
-    
     if (!cloudflareUrl || !cloudflareUrl.startsWith('http')) {
       throw new Error(`URL inválida: ${cloudflareUrl}`);
     }
-
     let imageUrl = null;
     let lastError = null;
-
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         console.log(`🔄 Intento ${attempt}/${MAX_RETRIES} para ${folder_name}`);
-        
         imageUrl = await ImageDecryptor.downloadAndDecryptImage(
           cloudflareUrl,
           this.folderKey,
           startByte,
           endByte
         );
-        
         console.log(`✅ Imagen descargada exitosamente en intento ${attempt}`);
         break;
-        
       } catch (imgError) {
         lastError = imgError;
         console.error(`❌ Intento ${attempt} falló:`, imgError.message);
-        
         if (attempt < MAX_RETRIES) {
           console.log(`⏳ Esperando ${RETRY_DELAY}ms antes de reintentar...`);
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
         }
       }
     }
-
     if (!imageUrl && lastError) {
       console.error('❌ Error descargando imagen después de todos los reintentos:', lastError);
       HelpClass.showToast('❌ Error cargando imagen', { duration: 3000 });
       this.addFolderCard(FolderCard.createErrorCard('Error de red'));
       return;
     }
-    
     const folderData = {
       imageUrl,
       folderData: decryptedFolder,
       rawDoc: folderDoc
     };
-    
     this.loadedFolders.push(folderData);
     const folderIndex = this.loadedFolders.length - 1;
-    
     const cardHtml = FolderCard.createCard(
       imageUrl,
       folder_name,
       folderIndex
     );
-    
     this.addFolderCard(cardHtml);
-    
     setTimeout(() => {
       const cardId = `folder-${folderIndex}`;
       const card = document.getElementById(cardId);
@@ -494,36 +454,29 @@ async processFolderAndDisplay(folderDoc, ownerId) {
         });
       }
     }, 0);
-    
   } catch (error) {
     console.error('❌ Error procesando carpeta:', error);
     HelpClass.showToast(`❌ Error: ${error.message}`, { duration: 5000 });
     this.addFolderCard(FolderCard.createErrorCard('Error'));
   }
 }
-
 async handleFolderClick(decryptedFolder, rawDoc) {
   console.log('🖱️ Click en carpeta:', decryptedFolder.folder_name);
   this.currentSelectedFolder = decryptedFolder;
-  this.currentSelectedRawDoc = rawDoc;
-  
+  this.currentSelectedRawDoc = rawDoc; 
   try {
     this.openDetailModal();
     this.showDetailLoading();
-    
     const { 
       folder_name, 
       folder_descript, 
       miniatura_id 
     } = decryptedFolder;
-    
     const idownSuport = rawDoc.Idown_suport || false;
     const unifiqSuport = rawDoc.Unifiq_suport || false;
-    
     const loadedFolder = this.loadedFolders.find(
       f => f.folderData.folder_name === folder_name
     );
-    
     if (!loadedFolder) {
       throw new Error('No se encontró la imagen de la carpeta');
     }
@@ -535,7 +488,6 @@ async handleFolderClick(decryptedFolder, rawDoc) {
       idownSuport,
       unifiqSuport
     });
-  
   } catch (error) {
     console.error('❌ Error mostrando detalle:', error);
     HelpClass.showToast('❌ Error cargando detalles');
@@ -568,11 +520,11 @@ showDetailLoading() {
   document.getElementById('detailIdownSuport').textContent = '';
   document.getElementById('detailUnifiqSuport').textContent = '';
 } 
-
 async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSuport, unifiqSuport }) {
   document.getElementById('detailImage').src = imageUrl;
   document.getElementById('detailTitle').textContent = title;
   document.getElementById('detailDescription').textContent = description;
+  
   const videoContainer = document.getElementById('detailVideoContainer');
   if (youtubeUrl && youtubeUrl.trim()) {
     const videoId = this.extractYouTubeId(youtubeUrl);
@@ -591,42 +543,41 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   } else {
     videoContainer.innerHTML = '';
   }
-
-  //Fragmento Falla (Ya reparado)
-  // Flags
-   document.getElementById('detailIdownSuport').textContent = 
-    idownSuport ? '✓ Descarga soportada' : '✗ Sin descarga';
+  
+  // ✅ CAMBIO: Badges con acrónimos
+  document.getElementById('detailIdownSuport').textContent = 
+    idownSuport ? '⬇️ DL' : '🚫 DL'; // DL = Download
+  
   document.getElementById('detailUnifiqSuport').textContent = 
-    unifiqSuport ? '✓ Único' : '✗ Múltiple';
+    unifiqSuport ? '📌 UNQ' : '📁 MLT'; // UNQ = Único, MLT = Multiple
+  
   let hasLocalData = false;
   let savedTime = 0;
-
+  
   if (this.isTV) {
     const cachedManifest = memoryCache.getManifest();
     savedTime = memoryCache.getPlaybackTime();
     hasLocalData = cachedManifest !== null && savedTime > 0;
   } else {
-    // Importación dinámica - solo carga el módulo si realmente se necesita(Arreglado el fallo de diskCache)
     const { diskCache } = await import('../utils/disk-cache.js');
     const status = await diskCache.checkFolderStatus(title);
     hasLocalData = status.exists && status.chunkCount > 0;
     savedTime = status.playbackTime;
   }
-
   
-
   const continueBtn = document.getElementById('detailContinueButton');
   const resumeBtn = document.getElementById('detailResumeButton');
+  
   if (hasLocalData && savedTime > 0) {
-    continueBtn.textContent = '▶️ Empezar de nuevo';
+    // ✅ CAMBIO: Textos más cortos
+    continueBtn.textContent = '▶️ Inicio';
     resumeBtn.style.display = 'block';
-    resumeBtn.textContent = `⏯️ Continuar desde ${SeekCalculator.secondsToTime(savedTime)}`;
+    resumeBtn.textContent = `⏯️ ${SeekCalculator.secondsToTime(savedTime)}`;
   } else {
-    continueBtn.textContent = '▶️ Reproducir';
+    continueBtn.textContent = '▶️ Play';
     resumeBtn.style.display = 'none';
   }
-} 
-
+}
 extractYouTubeId(url) {
   const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
   const match = url.match(regExp);
@@ -650,7 +601,7 @@ showFoldersContainer() {
       }
     }
     this.foldersContainer.style.display = 'grid';
-  }
+}
 showLoadingCards(count = 3) {
     if (this.foldersContainer) {
       this.foldersContainer.innerHTML = '';
@@ -658,7 +609,7 @@ showLoadingCards(count = 3) {
         this.foldersContainer.innerHTML += FolderCard.createLoadingCard();
       }
     }
-  }
+}
 clearFoldersContainer() {
   if (this.foldersContainer) {
     const cards = this.foldersContainer.querySelectorAll('.folder-card');
@@ -703,212 +654,6 @@ destroy() {
     this.playbackOrchestrator = null;
   }
 }
-
-  async handleQRLogin() {
-    try {
-      const email = storage.get('qr_email');
-      const password = storage.get('qr_password');
-      if (!email || !password) {
-        HelpClass.showToast('⚠️ Credenciales no disponibles. Vuelve a iniciar sesión.', {
-          duration: 4000
-        });
-        return;
-      }
-      HelpClass.showToast('📷 Abriendo escáner QR...');
-      if (typeof Html5Qrcode === 'undefined') {
-        await this.loadQRLibrary();
-      }
-      const scannerModal = this.createScannerModal();
-      document.body.appendChild(scannerModal);
-      this.qrModal = scannerModal;
-      this.html5QrCode = new Html5Qrcode("qr-reader");
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
-      };
-      this.html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        async (decodedText) => {
-          console.log('✅ QR escaneado:', decodedText);
-          await this.html5QrCode.stop();
-          this.html5QrCode = null;
-          document.body.removeChild(scannerModal);
-          this.qrModal = null;
-          await this.processQRData(decodedText, email, password);
-        },
-        (errorMessage) => {
-        }
-      ).catch(err => {
-        console.error('❌ Error iniciando cámara:', err);
-        HelpClass.showToast('❌ No se pudo acceder a la cámara');
-        document.body.removeChild(scannerModal);
-        this.qrModal = null;
-        this.html5QrCode = null;
-      });
-      scannerModal.querySelector('.close-scanner').addEventListener('click', async () => {
-        if (this.html5QrCode) {
-          await this.html5QrCode.stop();
-          this.html5QrCode = null;
-        }
-        document.body.removeChild(scannerModal);
-        this.qrModal = null;
-      });
-
-    } catch (error) {
-      console.error('❌ Error en QR login:', error);
-      HelpClass.showToast('❌ Error: ' + error.message);
-    }
-  }
-  loadQRLibrary() {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/html5-qrcode';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-  createScannerModal() {
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.95);
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    `;
-    modal.innerHTML = `
-      <button class="close-scanner" style="
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        background: rgba(255,255,255,0.2);
-        border: 1px solid #3dd2f3;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 16px;
-      ">✕ Cerrar</button>
-      <h2 style="color: white; margin-bottom: 20px;">Escanea el código QR</h2>
-      <div id="qr-reader" style="width: 90%; max-width: 500px;"></div>
-      <p style="color: #3dd2f3; margin-top: 20px; text-align: center;">
-        Apunta la cámara al código QR en la TV
-      </p>
-    `;
-    return modal;
-  }
-async processQRData(qrData, email, password) {
-  try {
-    console.log('📥 Datos del QR recibidos:', qrData);
-    let qrObject;
-    try {
-      qrObject = JSON.parse(qrData);
-    } catch (parseError) {
-      console.error('❌ Error parseando QR:', parseError);
-      throw new Error('QR inválido: formato JSON incorrecto');
-    }
-    const { id, pwd, salt } = qrObject;
-    if (!id || !pwd || !salt) {
-      console.error('❌ Datos faltantes en QR:', { 
-        hasId: !!id, 
-        hasPwd: !!pwd, 
-        hasSalt: !!salt 
-      });
-      throw new Error('QR incompleto');
-    }
-    console.log('✅ QR válido:', {
-      documentId: id,
-      pwdLength: pwd.length,
-      saltLength: salt.length
-    });
-    const token = await this.encryptCredentials(email, password, pwd, salt);
-    console.log('✅ Token cifrado:', {
-      length: token.length,
-      preview: token.substring(0, 30) + '...'
-    });
-    await this.updateTempDocument(id, token);
-    HelpClass.showToast('✅ Login enviado a la TV', { 
-      duration: 3000 
-    });
-  } catch (error) {
-    console.error('❌ Error procesando QR:', {
-      mensaje: error.message,
-      stack: error.stack
-    });
-    HelpClass.showToast(`❌ ${error.message}`, {
-      duration: 4000
-    });
-  }}
-async encryptCredentials(email, password, key, salt) {
-  const credentials = JSON.stringify({ email, password });
-  const encoder = new TextEncoder();
-  const data = encoder.encode(credentials);
-  const saltBytes = encoder.encode(salt);
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(key),
-    'PBKDF2',
-    false,
-    ['deriveBits', 'deriveKey']
-    );
-    const cryptoKey = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: saltBytes,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt']
-    );
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      cryptoKey,
-      data
-    );
-    const combined = new Uint8Array(iv.length + encrypted.byteLength);
-    combined.set(iv);
-    combined.set(new Uint8Array(encrypted), iv.length);
-    return btoa(String.fromCharCode(...combined));
-  }
-async updateTempDocument(docId, token) {
-  const endpoint = appwriteManager.getEndpoint();
-  const projectId = appwriteManager.getProjectId();
-  const databaseId = appwriteManager.getDatabaseId();
-  const response = await fetch(
-    `${endpoint}/databases/${databaseId}/collections/temp/documents/${docId}`,
-    {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Appwrite-Project': projectId
-      },
-      body: JSON.stringify({
-        data: {
-          token: token
-        }
-      })
-    }
-  );
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Error actualizando documento: ${errorText}`);
-  }
-console.log('✅ Token enviado al documento:', docId);
-}
-
 
 getHomeHTML() {
   return `
@@ -1119,174 +864,195 @@ getHomeStyles() {
         margin-bottom: 12px; 
       }
 
-      /* Modal de detalle - IMAGEN REDUCIDA */
       .folder-detail-modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.9);
-        backdrop-filter: blur(10px);
-        z-index: var(--z-modal);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity var(--transition-base), visibility var(--transition-base);
-        padding: var(--spacing-md);
+       position: fixed;
+       top: 0;
+       left: 0;
+       width: 100%;
+       height: 100%;
+       background: rgba(0, 0, 0, 0.95);
+       backdrop-filter: blur(10px);
+       z-index: var(--z-modal);
+       display: flex;
+       align-items: center;
+       justify-content: center;
+       opacity: 0;
+       visibility: hidden;
+       transition: opacity var(--transition-base), visibility var(--transition-base);
+       padding: 0;
       }
-
       .folder-detail-modal.active {
         opacity: 1;
         visibility: visible;
       }
 
       .folder-detail-content {
-        position: relative;
-        background: var(--glass-background);
-        border: var(--glass-border);
-        border-radius: 16px;
-        width: 100%;
-        max-width: 600px;
-        max-height: 90vh;
-        box-shadow: var(--glass-shadow);
+      position: relative;
+      background: linear-gradient(to bottom, rgba(10, 10, 31, 0.95), rgba(2, 2, 14, 0.98));
+      border-radius: 12px;
+      width: 90%;
+      max-width: 900px;
+      max-height: 85vh;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
       }
 
       .detail-btn-resume {
-      background: linear-gradient(135deg, #4CAF50, #45a049);
-      color: white;}
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
       .detail-btn-resume:hover {
-      background: linear-gradient(135deg, #45a049, #3d8b40);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);}
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.5);
+}
 
       .close-detail-btn {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: rgba(255, 68, 68, 0.8);
-        border: none;
-        color: white;
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 20px;
-        z-index: 10;
-        transition: all var(--transition-fast);
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(20, 20, 40, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+      z-index: 10;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       }
+
 
       .close-detail-btn:hover {
-        background: rgba(255, 68, 68, 1);
+        background: rgba(255, 68, 68, 0.9);
         transform: scale(1.1);
       }
-
+      
       .detail-scroll-container {
-        max-height: 90vh;
-        overflow-y: auto;
-        padding: var(--spacing-lg);
+      max-height: 85vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
       }
-
+      
       .detail-image {
-        width: 100%;
-        height: auto;
-        max-height: 150px;
-        object-fit: cover;
-        border-radius: 8px;
-        margin-bottom: var(--spacing-sm);
+      width: 100%;
+      height: auto;
+      max-height: 400px;
+      object-fit: contain;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(10,10,31,0.95));
+      margin: 0;
       }
+     .detail-title {
+     color: var(--color-primary);
+     font-size: 28px;
+     font-weight: 700;
+     margin: 16px 20px 8px 20px;
+     line-height: 1.2;
+     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+     }
 
-      .detail-title {
-        color: var(--color-primary);
-        font-size: var(--font-xl);
-        margin: 0 0 var(--spacing-sm) 0;
-        word-wrap: break-word;
-      }
 
       .detail-description-container {
-        max-height: 120px;
-        overflow-y: auto;
-        margin-bottom: var(--spacing-sm);
-        padding: var(--spacing-sm);
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 8px;
-      }
+  max-height: 100px;
+  overflow-y: auto;
+  margin: 0 20px 16px 20px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border-left: 3px solid var(--color-primary);
+}
 
       .detail-description {
-        color: var(--color-text-secondary);
-        font-size: var(--font-sm);
-        line-height: 1.5;
-        margin: 0;
-        white-space: pre-wrap;
-      }
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
 
       .detail-video-container {
-        margin-bottom: var(--spacing-sm);
-        border-radius: 8px;
-        overflow: hidden;
-      }
+  margin: 0 20px 16px 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
 
       .detail-video-container iframe {
         border-radius: 8px;
       }
 
       .detail-flags {
-        display: flex;
-        gap: var(--spacing-xs);
-        margin-bottom: var(--spacing-md);
-        flex-wrap: wrap;
-      }
+  display: flex;
+  gap: 8px;
+  margin: 0 20px 12px 20px;
+  flex-wrap: wrap;
+}
 
-      .detail-flag {
-        padding: var(--spacing-xs) var(--spacing-sm);
-        background: rgba(61, 210, 243, 0.1);
-        border: 1px solid rgba(61, 210, 243, 0.3);
-        border-radius: 6px;
-        font-size: var(--font-xs);
-        color: var(--color-text-secondary);
-      }
+.detail-flag {
+  padding: 4px 10px;
+  background: rgba(61, 210, 243, 0.15);
+  border: 1px solid rgba(61, 210, 243, 0.4);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 
       .detail-actions {
-        display: flex;
-        gap: var(--spacing-sm);
-        margin-top: var(--spacing-md);
-      }
+  display: flex;
+  gap: 10px;
+  margin: 0 20px 20px 20px;
+  flex-wrap: wrap;
+}
 
-      .detail-btn {
-        flex: 1;
-        padding: var(--spacing-sm) var(--spacing-md);
-        border: none;
-        border-radius: 8px;
-        font-size: var(--font-sm);
-        font-weight: 600;
-        cursor: pointer;
-        transition: all var(--transition-base);
-      }
+     .detail-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
 
       .detail-btn-primary {
-        background: var(--color-primary);
-        color: var(--color-background);
-      }
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  color: var(--color-background);
+  box-shadow: 0 4px 12px rgba(61, 210, 243, 0.3);
+}
 
-      .detail-btn-primary:hover {
-        background: var(--color-primary-light);
-        transform: translateY(-2px);
-        box-shadow: var(--neon-glow-md);
-      }
+
+     .detail-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(61, 210, 243, 0.5);
+}
+
 
       .detail-btn-secondary {
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--color-text);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
 
-      .detail-btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.2);
-        transform: translateY(-2px);
-      }
-
+     .detail-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
       /* Drawer */
       .drawer {
         position: fixed;
@@ -1367,23 +1133,40 @@ getHomeStyles() {
         visibility: visible;
       }
 
-      @media (max-width: 480px) {
-        .header-greeting p {
-          font-size: 13px; /* MÁS PEQUEÑO en móvil */
-        }
-        
-        .home-header {
-          padding: 6px 12px; /* AÚN MÁS COMPACTO en móvil */
-          min-height: 46px;
-        }
+      @media (max-width: 768px) {
+  .detail-title {
+    font-size: 22px;
+    margin: 12px 16px 6px 16px;
+  }
+  
+  .detail-image {
+    max-height: 300px;
+  }
+  
+  .detail-flags,
+  .detail-description-container,
+  .detail-video-container,
+  .detail-actions {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+  
+  .detail-btn {
+    font-size: 12px;
+    padding: 10px 12px;
+    min-width: 100px;
+  }
+}
 
-        .menu-button,
-        .qr-tv-button-icon {
-          width: 38px;
-          height: 38px;
-          font-size: 18px;
-        }
-      }
+@media (max-width: 480px) {
+  .detail-actions {
+    flex-direction: column;
+  }
+  
+  .detail-btn {
+    width: 100%;
+  }
+}
 
      @media (min-width: 768px) {
         .home-header {
@@ -1439,5 +1222,212 @@ getHomeStyles() {
       }
     </style>
   `;
+}
+
+
+
+async handleQRLogin() {
+    try {
+      const email = storage.get('qr_email');
+      const password = storage.get('qr_password');
+      if (!email || !password) {
+        HelpClass.showToast('⚠️ Credenciales no disponibles. Vuelve a iniciar sesión.', {
+          duration: 4000
+        });
+        return;
+      }
+      HelpClass.showToast('📷 Abriendo escáner QR...');
+      if (typeof Html5Qrcode === 'undefined') {
+        await this.loadQRLibrary();
+      }
+      const scannerModal = this.createScannerModal();
+      document.body.appendChild(scannerModal);
+      this.qrModal = scannerModal;
+      this.html5QrCode = new Html5Qrcode("qr-reader");
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+      };
+      this.html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        async (decodedText) => {
+          console.log('✅ QR escaneado:', decodedText);
+          await this.html5QrCode.stop();
+          this.html5QrCode = null;
+          document.body.removeChild(scannerModal);
+          this.qrModal = null;
+          await this.processQRData(decodedText, email, password);
+        },
+        (errorMessage) => {
+        }
+      ).catch(err => {
+        console.error('❌ Error iniciando cámara:', err);
+        HelpClass.showToast('❌ No se pudo acceder a la cámara');
+        document.body.removeChild(scannerModal);
+        this.qrModal = null;
+        this.html5QrCode = null;
+      });
+      scannerModal.querySelector('.close-scanner').addEventListener('click', async () => {
+        if (this.html5QrCode) {
+          await this.html5QrCode.stop();
+          this.html5QrCode = null;
+        }
+        document.body.removeChild(scannerModal);
+        this.qrModal = null;
+      });
+
+    } catch (error) {
+      console.error('❌ Error en QR login:', error);
+      HelpClass.showToast('❌ Error: ' + error.message);
+    }
+  }
+loadQRLibrary() {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+      script.src = 'https://unpkg.com/html5-qrcode';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  createScannerModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    `;
+    modal.innerHTML = `
+      <button class="close-scanner" style="
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(255,255,255,0.2);
+        border: 1px solid #3dd2f3;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+      ">✕ Cerrar</button>
+      <h2 style="color: white; margin-bottom: 20px;">Escanea el código QR</h2>
+      <div id="qr-reader" style="width: 90%; max-width: 500px;"></div>
+      <p style="color: #3dd2f3; margin-top: 20px; text-align: center;">
+        Apunta la cámara al código QR en la TV
+      </p>
+    `;
+    return modal;
+  }
+async processQRData(qrData, email, password) {
+  try {
+    console.log('📥 Datos del QR recibidos:', qrData);
+    let qrObject;
+    try {
+      qrObject = JSON.parse(qrData);
+    } catch (parseError) {
+      console.error('❌ Error parseando QR:', parseError);
+      throw new Error('QR inválido: formato JSON incorrecto');
+    }
+    const { id, pwd, salt } = qrObject;
+    if (!id || !pwd || !salt) {
+      console.error('❌ Datos faltantes en QR:', { 
+        hasId: !!id, 
+        hasPwd: !!pwd, 
+        hasSalt: !!salt 
+      });
+      throw new Error('QR incompleto');
+    }
+    console.log('✅ QR válido:', {
+      documentId: id,
+      pwdLength: pwd.length,
+      saltLength: salt.length
+    });
+    const token = await this.encryptCredentials(email, password, pwd, salt);
+    console.log('✅ Token cifrado:', {
+      length: token.length,
+      preview: token.substring(0, 30) + '...'
+    });
+    await this.updateTempDocument(id, token);
+    HelpClass.showToast('✅ Login enviado a la TV', { 
+      duration: 3000 
+    });
+  } catch (error) {
+    console.error('❌ Error procesando QR:', {
+      mensaje: error.message,
+      stack: error.stack
+    });
+    HelpClass.showToast(`❌ ${error.message}`, {
+      duration: 4000
+    });
+  }}
+async encryptCredentials(email, password, key, salt) {
+  const credentials = JSON.stringify({ email, password });
+  const encoder = new TextEncoder();
+  const data = encoder.encode(credentials);
+  const saltBytes = encoder.encode(salt);
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(key),
+    'PBKDF2',
+    false,
+    ['deriveBits', 'deriveKey']
+    );
+    const cryptoKey = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: saltBytes,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt']
+    );
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      cryptoKey,
+      data
+    );
+    const combined = new Uint8Array(iv.length + encrypted.byteLength);
+    combined.set(iv);
+    combined.set(new Uint8Array(encrypted), iv.length);
+    return btoa(String.fromCharCode(...combined));
+  }
+async updateTempDocument(docId, token) {
+  const endpoint = appwriteManager.getEndpoint();
+  const projectId = appwriteManager.getProjectId();
+  const databaseId = appwriteManager.getDatabaseId();
+  const response = await fetch(
+    `${endpoint}/databases/${databaseId}/collections/temp/documents/${docId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': projectId
+      },
+      body: JSON.stringify({
+        data: {
+          token: token
+        }
+      })
+    }
+  );
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error actualizando documento: ${errorText}`);
+  }
+console.log('✅ Token enviado al documento:', docId);
 }
 }

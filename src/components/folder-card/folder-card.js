@@ -1,14 +1,13 @@
 
 export class FolderCard {
   /**
-   * @param {string} imageUrl - URL del Blob de la imagen
-   * @param {string} folderName - Nombre de la carpeta
-   * @param {Function} onClick - Callback al hacer click
-   * @returns {string} HTML de la tarjeta
+   * @param {string} imageUrl
+   * @param {string} folderName
+   * @param {Function} onClick
+   * @returns {string}
    */
   static createCard(imageUrl, folderName, folderIndex) {
   const cardId = `folder-${folderIndex}`;
-  
   return `
     <div class="folder-card" id="${cardId}">
       <div class="folder-image-container">
@@ -62,8 +61,6 @@ export class FolderCard {
     </div>
   `;
 }
-
-
 static getStyles() {
   return `
     <style>
@@ -76,7 +73,6 @@ static getStyles() {
         overflow-y: auto;
         max-height: calc(100vh - 180px);
       }
-
       .folder-card {
         background: var(--glass-background);
         border: var(--glass-border);
@@ -86,36 +82,35 @@ static getStyles() {
         transition: all var(--transition-base);
         box-shadow: var(--glass-shadow);
       }
-
-      .folder-card:hover,
+       .folder-card:hover,
       .folder-card:focus {
         transform: translateY(-3px);
         box-shadow: var(--glass-shadow), var(--neon-glow-md);
         border-color: var(--color-primary-light);
       }
-
+      
       .folder-image-container {
         position: relative;
         width: 100%;
-        padding-top: 105%;
+        padding-top: 150%;
         overflow: hidden;
         background: rgba(0, 0, 0, 0.3);
       }
-
+      
       .folder-image {
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain;
         transition: transform var(--transition-base);
       }
-
+      
       .folder-card:hover .folder-image {
         transform: scale(1.05);
       }
-
+      
       .folder-overlay {
         position: absolute;
         bottom: 0;
@@ -125,7 +120,7 @@ static getStyles() {
         background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
         pointer-events: none;
       }
-
+      
       .folder-name {
         padding: var(--spacing-xs);
         text-align: center;
@@ -145,7 +140,6 @@ static getStyles() {
         overflow: hidden;
         text-overflow: ellipsis;
       }
-
       .folder-card.loading {
         pointer-events: none;
       }
