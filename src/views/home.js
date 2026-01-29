@@ -526,6 +526,7 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   document.getElementById('detailDescription').textContent = description;
   
   const videoContainer = document.getElementById('detailVideoContainer');
+  // CAMBIO: Solo crear iframe si hay URL válida
   if (youtubeUrl && youtubeUrl.trim()) {
     const videoId = this.extractYouTubeId(youtubeUrl);
     if (videoId) {
@@ -539,17 +540,35 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
           allowfullscreen
         ></iframe>
       `;
+      videoContainer.style.display = 'block';
+    } else {
+      videoContainer.innerHTML = '';
+      videoContainer.style.display = 'none';
     }
   } else {
     videoContainer.innerHTML = '';
+    videoContainer.style.display = 'none';
   }
   
-  // ✅ CAMBIO: Badges con acrónimos
-  document.getElementById('detailIdownSuport').textContent = 
-    idownSuport ? '⬇️ DL' : '🚫 DL'; // DL = Download
+  // CAMBIO: Movemos los badges dentro del contenedor de descripción
+  const descriptionContainer = document.getElementById('detailDescriptionContainer');
+  const existingFlags = descriptionContainer.querySelector('.detail-flags');
+  if (existingFlags) {
+    existingFlags.remove();
+  }
   
-  document.getElementById('detailUnifiqSuport').textContent = 
-    unifiqSuport ? '📌 UNQ' : '📁 MLT'; // UNQ = Único, MLT = Multiple
+  const flagsHTML = `
+    <div class="detail-flags">
+      <span class="detail-flag ${idownSuport ? 'flag-active' : 'flag-inactive'}">
+        ${idownSuport ? '⬇️ DL' : '🚫 DL'}
+      </span>
+      <span class="detail-flag ${unifiqSuport ? 'flag-active' : 'flag-inactive'}">
+        ${unifiqSuport ? '📌 UNQ' : '📁 MLT'}
+      </span>
+    </div>
+  `;
+  
+  descriptionContainer.insertAdjacentHTML('beforeend', flagsHTML);
   
   let hasLocalData = false;
   let savedTime = 0;
@@ -569,7 +588,6 @@ async populateDetailModal({ imageUrl, title, description, youtubeUrl, idownSupor
   const resumeBtn = document.getElementById('detailResumeButton');
   
   if (hasLocalData && savedTime > 0) {
-    // ✅ CAMBIO: Textos más cortos
     continueBtn.textContent = '▶️ Inicio';
     resumeBtn.style.display = 'block';
     resumeBtn.textContent = `⏯️ ${SeekCalculator.secondsToTime(savedTime)}`;
@@ -701,30 +719,30 @@ getHomeHTML() {
       <!-- Overlay del drawer -->
       <div id="drawerOverlay" class="drawer-overlay"></div>
       <!-- Modal de detalle de carpeta -->
-      <div id="folderDetailModal" class="folder-detail-modal">
-        <div class="folder-detail-content">
-          <button id="closeDetailButton" class="close-detail-btn">✕</button>
-          <div class="detail-scroll-container">
-            <img id="detailImage" class="detail-image" alt="">
-            <h2 id="detailTitle" class="detail-title"></h2>
-            <div class="detail-description-container">
-              <p id="detailDescription" class="detail-description"></p>
-            </div>
-            <div id="detailVideoContainer" class="detail-video-container"></div>
-            <div class="detail-flags">
-              <span id="detailIdownSuport" class="detail-flag"></span>
-              <span id="detailUnifiqSuport" class="detail-flag"></span>
-            </div>
-            <div class="detail-actions">
-            <button id="detailContinueButton" class="detail-btn detail-btn-primary">
-            ▶️ Reproducir</button>
-            <button id="detailResumeButton" class="detail-btn detail-btn-resume" style="display: none;">
-            ⏯️ Continuar</button>
-            <button id="detailCloseButton" class="detail-btn detail-btn-secondary">Cerrar</button>
-            </div>
-          </div>
-        </div>
+      <!-- Modal de detalle de carpeta -->
+<div id="folderDetailModal" class="folder-detail-modal">
+  <div class="folder-detail-content">
+    <button id="closeDetailButton" class="close-detail-btn">✕</button>
+    <div class="detail-scroll-container">
+      <img id="detailImage" class="detail-image" alt="">
+      <h2 id="detailTitle" class="detail-title"></h2>
+      <div id="detailDescriptionContainer" class="detail-description-container">
+        <p id="detailDescription" class="detail-description"></p>
+        <!-- Los flags se insertarán aquí dinámicamente -->
       </div>
+      <div id="detailVideoContainer" class="detail-video-container" style="display: none;"></div>
+      <div class="detail-actions">
+        <button id="detailContinueButton" class="detail-btn detail-btn-primary">
+          ▶️ Reproducir
+        </button>
+        <button id="detailResumeButton" class="detail-btn detail-btn-resume" style="display: none;">
+          ⏯️ Continuar
+        </button>
+        <button id="detailCloseButton" class="detail-btn detail-btn-secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
     </div>
     ${this.getHomeStyles()}
   `;
@@ -864,9 +882,9 @@ getHomeStyles() {
       }
 
       /* ========================================
-         MODAL DE DETALLE - REDISEÑADO
+         MODAL DE DETALLE - ESTILO NETFLIX/PLEX
          ======================================== */
-      
+
       .folder-detail-modal {
         position: fixed;
         top: 0;
@@ -884,7 +902,7 @@ getHomeStyles() {
         transition: opacity var(--transition-base), visibility var(--transition-base);
         padding: 20px;
       }
-      
+
       .folder-detail-modal.active {
         opacity: 1;
         visibility: visible;
@@ -895,8 +913,8 @@ getHomeStyles() {
         background: linear-gradient(to bottom, rgba(10, 10, 31, 0.95), rgba(2, 2, 14, 0.98));
         border-radius: 12px;
         width: 90%;
-        max-width: 800px;
-        max-height: 85vh;
+        max-width: 900px;
+        max-height: 90vh;
         overflow: hidden;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
       }
@@ -908,11 +926,11 @@ getHomeStyles() {
         background: rgba(20, 20, 40, 0.9);
         border: 1px solid rgba(255, 255, 255, 0.1);
         color: white;
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
         cursor: pointer;
-        font-size: 18px;
+        font-size: 20px;
         z-index: 10;
         transition: all var(--transition-fast);
         display: flex;
@@ -924,41 +942,40 @@ getHomeStyles() {
         background: rgba(255, 68, 68, 0.9);
         transform: scale(1.1);
       }
-      
-      /* CAMBIO PRINCIPAL: Grid layout para distribución profesional */
+
+      /* LAYOUT PRINCIPAL - Desktop */
       .detail-scroll-container {
-        max-height: 85vh;
+        max-height: 90vh;
         overflow-y: auto;
-        padding: 20px;
+        padding: 24px;
         display: grid;
-        grid-template-columns: 200px 1fr;
-        grid-template-rows: auto auto auto 1fr auto;
-        gap: 16px;
+        grid-template-columns: 240px 1fr;
+        grid-template-rows: auto auto 1fr auto;
+        gap: 20px;
         grid-template-areas:
           "image title"
           "image description"
-          "image flags"
           "video video"
           "actions actions";
       }
-      
-      /* Imagen como miniatura a la izquierda */
+
+      /* Imagen como póster vertical */
       .detail-image {
         grid-area: image;
         width: 100%;
         height: auto;
-        max-height: 280px;
-        object-fit: cover;
-        object-position: center;
+        max-height: 360px;
+        object-fit: contain;
+        object-position: center top;
         border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
       }
-      
-      /* Título al lado de la imagen */
+
+      /* Título */
       .detail-title {
         grid-area: title;
         color: var(--color-primary);
-        font-size: 24px;
+        font-size: 28px;
         font-weight: 700;
         margin: 0;
         line-height: 1.2;
@@ -966,118 +983,135 @@ getHomeStyles() {
         align-self: start;
       }
 
-      /* Descripción debajo del título */
+      /* Contenedor de descripción + flags */
       .detail-description-container {
         grid-area: description;
-        max-height: 120px;
+        max-height: 280px;
         overflow-y: auto;
-        padding: 12px;
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 6px;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.4);
+        border-radius: 8px;
         border-left: 3px solid var(--color-primary);
-        align-self: start;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
       }
 
       .detail-description {
-        color: rgba(255, 255, 255, 0.85);
-        font-size: 13px;
-        line-height: 1.5;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 14px;
+        line-height: 1.6;
         margin: 0;
+        flex: 1;
       }
 
-      /* Flags al final de la columna derecha */
+      /* Flags dentro del contenedor de descripción */
       .detail-flags {
-        grid-area: flags;
         display: flex;
-        gap: 8px;
+        gap: 10px;
         flex-wrap: wrap;
-        align-self: end;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        margin-top: auto;
       }
 
       .detail-flag {
-        padding: 4px 10px;
+        padding: 6px 12px;
         background: rgba(61, 210, 243, 0.15);
         border: 1px solid rgba(61, 210, 243, 0.4);
-        border-radius: 4px;
+        border-radius: 6px;
         font-size: 11px;
-        font-weight: 600;
+        font-weight: 700;
         color: var(--color-primary);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
+        transition: all 0.2s;
       }
 
-      /* Video ocupa todo el ancho */
+      .detail-flag.flag-active {
+        background: rgba(61, 210, 243, 0.25);
+        border-color: var(--color-primary);
+        box-shadow: 0 0 8px rgba(61, 210, 243, 0.3);
+      }
+
+      .detail-flag.flag-inactive {
+        background: rgba(255, 68, 68, 0.15);
+        border-color: rgba(255, 68, 68, 0.4);
+        color: rgba(255, 255, 255, 0.6);
+      }
+
+      /* Video - Condicional */
       .detail-video-container {
         grid-area: video;
-        border-radius: 8px;
+        border-radius: 10px;
         overflow: hidden;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-        min-height: 200px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.5);
       }
 
       .detail-video-container iframe {
         width: 100%;
-        height: 250px;
-        border-radius: 8px;
+        height: 300px;
+        border: none;
       }
 
-      /* Botones al final, siempre horizontales */
+      /* Botones */
       .detail-actions {
         grid-area: actions;
         display: flex;
-        gap: 10px;
+        gap: 12px;
         flex-wrap: nowrap;
       }
 
       .detail-btn {
         flex: 1;
-        min-width: 100px;
-        padding: 12px 16px;
+        min-width: 120px;
+        padding: 14px 20px;
         border: none;
-        border-radius: 6px;
-        font-size: 13px;
+        border-radius: 8px;
+        font-size: 14px;
         font-weight: 700;
         cursor: pointer;
         transition: all var(--transition-base);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
+        gap: 8px;
         white-space: nowrap;
       }
 
       .detail-btn-primary {
         background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
         color: var(--color-background);
-        box-shadow: 0 4px 12px rgba(61, 210, 243, 0.3);
+        box-shadow: 0 4px 16px rgba(61, 210, 243, 0.4);
       }
 
       .detail-btn-primary:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(61, 210, 243, 0.5);
+        box-shadow: 0 6px 24px rgba(61, 210, 243, 0.6);
       }
 
       .detail-btn-resume {
         background: linear-gradient(135deg, #4CAF50, #45a049);
         color: white;
-        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        box-shadow: 0 4px 16px rgba(76, 175, 80, 0.4);
       }
 
       .detail-btn-resume:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(76, 175, 80, 0.5);
+        box-shadow: 0 6px 24px rgba(76, 175, 80, 0.6);
       }
 
       .detail-btn-secondary {
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.1);
         color: var(--color-text);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
       }
 
       .detail-btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.2);
         transform: translateY(-2px);
       }
 
@@ -1206,10 +1240,129 @@ getHomeStyles() {
       }
 
       /* ========================================
-         MEDIA QUERIES
+         RESPONSIVE - TABLET
          ======================================== */
-      
-      /* Tablet/Desktop */
+
+      @media (max-width: 1024px) {
+        .detail-scroll-container {
+          grid-template-columns: 200px 1fr;
+          padding: 20px;
+          gap: 16px;
+        }
+        
+        .detail-image {
+          max-height: 300px;
+        }
+        
+        .detail-title {
+          font-size: 24px;
+        }
+        
+        .detail-video-container iframe {
+          height: 250px;
+        }
+      }
+
+      /* ========================================
+         RESPONSIVE - MOBILE
+         ======================================== */
+
+      @media (max-width: 768px) {
+        .folder-detail-content {
+          width: 95%;
+          max-width: none;
+        }
+        
+        /* Layout en columna para móvil */
+        .detail-scroll-container {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto auto auto auto auto;
+          grid-template-areas:
+            "image"
+            "title"
+            "description"
+            "video"
+            "actions";
+          padding: 16px;
+          gap: 16px;
+        }
+        
+        /* Imagen centrada, tamaño reducido */
+        .detail-image {
+          max-width: 200px;
+          max-height: 300px;
+          margin: 0 auto;
+          display: block;
+        }
+        
+        /* Título centrado */
+        .detail-title {
+          font-size: 22px;
+          text-align: center;
+        }
+        
+        .detail-description-container {
+          max-height: 200px;
+        }
+        
+        .detail-description {
+          font-size: 13px;
+        }
+        
+        .detail-video-container iframe {
+          height: 200px;
+        }
+        
+        .detail-btn {
+          font-size: 13px;
+          padding: 12px 16px;
+        }
+      }
+
+      /* ========================================
+         RESPONSIVE - SMALL MOBILE
+         ======================================== */
+
+      @media (max-width: 480px) {
+        .detail-scroll-container {
+          padding: 12px;
+          gap: 12px;
+        }
+        
+        .detail-image {
+          max-width: 160px;
+          max-height: 240px;
+        }
+        
+        .detail-title {
+          font-size: 18px;
+        }
+        
+        .detail-description-container {
+          max-height: 150px;
+          padding: 12px;
+        }
+        
+        .detail-description {
+          font-size: 12px;
+        }
+        
+        .detail-actions {
+          gap: 8px;
+        }
+        
+        .detail-btn {
+          font-size: 11px;
+          padding: 10px 12px;
+          min-width: 90px;
+        }
+        
+        .detail-video-container iframe {
+          height: 180px;
+        }
+      }
+
+      /* Tablet/Desktop - Header adjustments */
       @media (min-width: 768px) {
         .home-header {
           padding: 10px 24px;
@@ -1225,78 +1378,9 @@ getHomeStyles() {
           margin: 0 auto;
         }
       }
-
-      /* Mobile - Layout en columna */
-      @media (max-width: 768px) {
-        .detail-scroll-container {
-          grid-template-columns: 1fr;
-          grid-template-rows: auto auto auto auto 1fr auto;
-          grid-template-areas:
-            "image"
-            "title"
-            "description"
-            "flags"
-            "video"
-            "actions";
-          padding: 16px;
-        }
-        
-        .detail-image {
-          max-height: 240px;
-        }
-        
-        .detail-title {
-          font-size: 20px;
-        }
-        
-        .detail-description-container {
-          max-height: 100px;
-        }
-        
-        .detail-video-container iframe {
-          height: 200px;
-        }
-        
-        .detail-btn {
-          font-size: 12px;
-          padding: 10px 12px;
-        }
-      }
-
-      /* Small Mobile */
-      @media (max-width: 480px) {
-        .folder-detail-content {
-          width: 95%;
-        }
-        
-        .detail-scroll-container {
-          padding: 12px;
-          gap: 12px;
-        }
-        
-        .detail-image {
-          max-height: 200px;
-        }
-        
-        .detail-title {
-          font-size: 18px;
-        }
-        
-        /* Botones permanecen horizontales */
-        .detail-actions {
-          gap: 8px;
-        }
-        
-        .detail-btn {
-          font-size: 11px;
-          padding: 8px 10px;
-          min-width: 80px;
-        }
-      }
     </style>
   `;
 }
-
 
 
 async handleQRLogin() {
