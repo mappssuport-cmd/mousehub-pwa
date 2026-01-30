@@ -278,7 +278,7 @@ async render() {
   console.log('📱 Usar como app:', useAsApp);
   if (this.isMobile) {
     console.log('📱 Dispositivo móvil detectado');
-    UIHelpers.showMobileDetectedMessage();
+    
   }
   HelpClass.vibrate(50);
   try {

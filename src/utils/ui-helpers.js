@@ -91,12 +91,6 @@ export class UIHelpers {
     });
   }
 
-  static showMobileDetectedMessage() {
-    this.showToast('📱 Dispositivo móvil detectado', {
-      type: 'success',
-      duration: 2000
-    });
-  }
 
   static showLoading(message = 'Cargando...') {
     this.init();

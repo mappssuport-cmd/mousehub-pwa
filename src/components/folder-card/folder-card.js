@@ -81,6 +81,9 @@ static getStyles() {
         cursor: pointer;
         transition: all var(--transition-base);
         box-shadow: var(--glass-shadow);
+        /* NUEVO: Limitar tamaño máximo en desktop */
+        max-width: 210px; /* 50% de ~420px original */
+        margin: 0 auto;
       }
        .folder-card:hover,
       .folder-card:focus {
@@ -92,8 +95,7 @@ static getStyles() {
       .folder-image-container {
         position: relative;
         width: 100%;
-        /* CAMBIO: 150% = ratio 1:1.5 para 420x630 - se ve como miniatura proporcional */
-        padding-top: 150%;
+        padding-top: 150%; /* Mantiene ratio 1:1.5 */
         overflow: hidden;
         background: rgba(0, 0, 0, 0.3);
       }
@@ -104,7 +106,6 @@ static getStyles() {
         left: 0;
         width: 100%;
         height: 100%;
-        /* contain muestra la imagen completa sin recortar */
         object-fit: contain;
         object-position: center;
         transition: transform var(--transition-base);
@@ -201,6 +202,9 @@ static getStyles() {
         .folders-grid {
           grid-template-columns: repeat(3, 1fr);
         }
+        .folder-card {
+          max-width: 180px; /* ~60% reducción */
+        }
       }
 
       /* Mobile */
@@ -210,14 +214,17 @@ static getStyles() {
           gap: var(--spacing-xs);
         }
         
+        .folder-card {
+          max-width: 137px; /* 65% de ~210px */
+        }
+        
         .folder-name {
           font-size: 11px;
           min-height: 32px;
         }
 
         .folder-image-container {
-          /* Mantiene la proporción 1:1.5 en móvil */
-          padding-top: 150%;
+          padding-top: 150%; /* Mantiene proporción */
         }
       }
 
@@ -225,6 +232,9 @@ static getStyles() {
       @media (max-width: 480px) {
         .folders-grid {
           grid-template-columns: repeat(2, 1fr);
+        }
+        .folder-card {
+          max-width: 130px;
         }
       }
     </style>
